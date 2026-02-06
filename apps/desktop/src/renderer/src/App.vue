@@ -5,6 +5,11 @@ import CountdownOverlay from './components/CountdownOverlay.vue'
 import PasswordDialog from './components/PasswordDialog.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 
+interface CompositedPhoto {
+  dataUrl: string
+  blob: Blob
+}
+
 type Screen = 'photobooth' | 'settings'
 
 const currentScreen = ref<Screen>('photobooth')
@@ -42,10 +47,51 @@ function capturePhoto(): string | null {
   return canvas.toDataURL('image/png')
 }
 
-function handleCountdownComplete(): void {
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error(`Failed to load image: ${src.slice(0, 100)}`))
+    img.src = src
+  })
+}
+
+async function compositePhoto(photoDataUrl: string): Promise<CompositedPhoto> {
+  const photo = await loadImage(photoDataUrl)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = photo.naturalWidth
+  canvas.height = photo.naturalHeight
+  const ctx = canvas.getContext('2d')!
+
+  // Draw the captured photo
+  ctx.drawImage(photo, 0, 0)
+
+  // Draw the frame overlay on top if configured
+  if (framePath.value) {
+    const frame = await loadImage(`file://${framePath.value}`)
+    ctx.drawImage(frame, 0, 0, canvas.width, canvas.height)
+  }
+
+  const dataUrl = canvas.toDataURL('image/png')
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('Failed to create blob'))),
+      'image/png'
+    )
+  })
+
+  return { dataUrl, blob }
+}
+
+const compositedPhoto = ref<CompositedPhoto | null>(null)
+
+async function handleCountdownComplete(): Promise<void> {
   const dataUrl = capturePhoto()
   if (dataUrl) {
     capturedPhotoDataUrl.value = dataUrl
+    const result = await compositePhoto(dataUrl)
+    compositedPhoto.value = result
   }
   countdownActive.value = false
 }

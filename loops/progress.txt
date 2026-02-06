@@ -31,6 +31,9 @@
 - CountdownOverlay component uses `<Teleport to="body">` with `:key` trick to retrigger CSS animations on each tick
 - App.vue `handleCountdownComplete()` calls `capturePhoto()` which draws video frame to canvas at native resolution, stores as data URL in `capturedPhotoDataUrl`
 - Photo capture uses `cameraPreviewRef` template ref → `videoRef` (exposed via `defineExpose`) → `canvas.drawImage(video, ...)`
+- Compositing: `compositePhoto()` returns `CompositedPhoto { dataUrl, blob }` — draws photo then frame on canvas at native resolution
+- Frame loaded via `file://` protocol in Electron renderer for canvas compositing (same as preview overlay)
+- `compositedPhoto` ref in App.vue is the handoff for US-014 (save) and US-015 (result screen)
 
 ---
 
@@ -229,4 +232,20 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - `document.createElement('canvas')` + `ctx.drawImage(video, ...)` is the standard pattern for capturing a video frame
   - `capturedPhotoDataUrl` ref in App.vue is the handoff point for US-013 (compositing) and US-014 (saving)
   - `InstanceType<typeof CameraPreview>` is the correct type for template refs of Vue components with `defineExpose`
+---
+
+## 2026-02-06 - US-013
+- Implemented frame overlay compositing using Canvas API in App.vue
+- Added `compositePhoto()` function: loads captured photo + frame PNG as Images, draws photo first then frame on canvas at native resolution
+- Output is `CompositedPhoto { dataUrl, blob }` — both data URL and Blob for downstream use (save, upload)
+- If no frame is configured (`framePath` empty), the raw photo is drawn without overlay
+- `handleCountdownComplete()` now calls `compositePhoto()` after capture, storing result in `compositedPhoto` ref
+- Added `loadImage()` helper to promisify Image loading
+- Frame PNG loaded via `file://` protocol (same approach as the preview overlay)
+- Files changed: apps/desktop/src/renderer/src/App.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - `Image.naturalWidth/naturalHeight` gives the intrinsic image dimensions for canvas sizing
+  - `canvas.toBlob()` is callback-based — wrap in Promise for async/await usage
+  - `getContext('2d')!` non-null assertion is safe for newly-created canvas elements (never returns null)
+  - `compositePhoto` ref is the handoff point for US-014 (local save) and US-015 (result screen)
 ---
