@@ -13,6 +13,8 @@ const cameraDeviceId = ref('')
 const framePath = ref('')
 const countdownSeconds = ref(3)
 const countdownActive = ref(false)
+const capturedPhotoDataUrl = ref<string | null>(null)
+const cameraPreviewRef = ref<InstanceType<typeof CameraPreview> | null>(null)
 
 async function loadPhotoboothSettings(): Promise<void> {
   const settings = (await window.api.settings.getAll()) as Record<string, unknown>
@@ -26,9 +28,26 @@ function handlePhotoboothClick(): void {
   countdownActive.value = true
 }
 
+function capturePhoto(): string | null {
+  const video = cameraPreviewRef.value?.videoRef
+  if (!video || video.readyState < video.HAVE_CURRENT_DATA) return null
+
+  const canvas = document.createElement('canvas')
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  return canvas.toDataURL('image/png')
+}
+
 function handleCountdownComplete(): void {
+  const dataUrl = capturePhoto()
+  if (dataUrl) {
+    capturedPhotoDataUrl.value = dataUrl
+  }
   countdownActive.value = false
-  // TODO: trigger photo capture (US-012)
 }
 
 function handleKeydown(e: KeyboardEvent): void {
@@ -71,7 +90,7 @@ async function returnToPhotobooth(): Promise<void> {
     @click="handlePhotoboothClick"
   >
     <!-- Live camera preview -->
-    <CameraPreview :camera-device-id="cameraDeviceId" />
+    <CameraPreview ref="cameraPreviewRef" :camera-device-id="cameraDeviceId" />
 
     <!-- Frame overlay -->
     <img

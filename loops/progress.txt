@@ -29,7 +29,8 @@
 - Frame overlay: simple `<img>` with `absolute inset-0 pointer-events-none object-cover` over camera preview; `v-if` on framePath to hide when unconfigured
 - Prefer `settings:getAll` over multiple `settings:get` calls when loading multiple settings at once
 - CountdownOverlay component uses `<Teleport to="body">` with `:key` trick to retrigger CSS animations on each tick
-- App.vue `handleCountdownComplete()` is the hook point for triggering photo capture (US-012)
+- App.vue `handleCountdownComplete()` calls `capturePhoto()` which draws video frame to canvas at native resolution, stores as data URL in `capturedPhotoDataUrl`
+- Photo capture uses `cameraPreviewRef` template ref → `videoRef` (exposed via `defineExpose`) → `canvas.drawImage(video, ...)`
 
 ---
 
@@ -211,4 +212,21 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - CSS keyframe `animation` re-triggers on each tick via a `:key="animKey"` that increments — forces Vue to recreate the element
   - `pointer-events-none` on the countdown overlay prevents it from stealing clicks from the photobooth screen
   - Countdown component uses `watch(active)` to start/stop rather than lifecycle hooks, allowing parent to control via prop
+---
+
+## 2026-02-06 - US-012
+- Implemented photo capture from camera feed at countdown completion
+- Added `capturePhoto()` function in App.vue that draws video frame onto a canvas at native resolution
+- Uses `cameraPreviewRef` template ref to access exposed `videoRef` from CameraPreview component
+- Canvas dimensions match `video.videoWidth` and `video.videoHeight` (native resolution, not display size)
+- Captured image stored as data URL (`image/png`) in `capturedPhotoDataUrl` ref for compositing (US-013)
+- Camera feed continues running after capture — no stream stopping
+- Guards: checks `video.readyState >= HAVE_CURRENT_DATA` before drawing
+- Files changed: apps/desktop/src/renderer/src/App.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - `video.videoWidth` / `video.videoHeight` give the native stream resolution, not the CSS display size
+  - `video.readyState >= video.HAVE_CURRENT_DATA` ensures the video has at least one frame available for canvas capture
+  - `document.createElement('canvas')` + `ctx.drawImage(video, ...)` is the standard pattern for capturing a video frame
+  - `capturedPhotoDataUrl` ref in App.vue is the handoff point for US-013 (compositing) and US-014 (saving)
+  - `InstanceType<typeof CameraPreview>` is the correct type for template refs of Vue components with `defineExpose`
 ---
