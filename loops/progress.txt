@@ -45,6 +45,8 @@
 - Database stored at `./data/fotobox.db` (relative to Nuxt cwd), data/ and uploads/ directories gitignored
 - WAL mode enabled on SQLite for better concurrent read/write performance
 - Nuxt auto-imports `defineNitroPlugin` in server/plugins/ — no explicit import needed
+- Nuxt API routes: `server/api/photos.post.ts` → `POST /api/photos`; `server/api/photos/[id].get.ts` → `GET /api/photos/:id`
+- Nuxt `readMultipartFormData(event)` returns `MultiPartData[]` with `name`, `data` (Buffer), `type` (MIME), `filename`
 
 ---
 
@@ -342,4 +344,20 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - Nitro plugins run on server startup — ideal for database initialization
   - `server/utils/` files are auto-imported in Nuxt server context — `getDb()` available everywhere in server code
   - WAL mode (`db.pragma('journal_mode = WAL')`) is recommended for SQLite in server environments
+---
+
+## 2026-02-06 - US-019
+- Implemented POST /api/photos endpoint for multipart image upload
+- Created `server/api/photos.post.ts` with file validation, UUID generation, disk storage, and DB insert
+- Validates file type (PNG/JPEG only) and file size (max 20MB), returns 400 for invalid uploads
+- Generates UUID for photo ID, saves file to `./uploads/{uuid}.{ext}`
+- Creates record in photos table with all metadata (id, filename, original_name, uploaded_at, file_size)
+- Returns `{ id, downloadUrl }` where downloadUrl is `/photo/{id}`
+- Files changed: apps/web/server/api/photos.post.ts (new), loops/prd.json
+- **Learnings for future iterations:**
+  - Nuxt `readMultipartFormData(event)` returns array of `MultiPartData` objects with `name`, `data` (Buffer), `type`, `filename`
+  - `MultiPartData.type` contains the MIME type (e.g., `image/png`), `MultiPartData.filename` has the original filename
+  - Nuxt auto-imports `readMultipartFormData`, `createError`, and `defineEventHandler` in server API routes
+  - File naming convention: `photos.post.ts` creates a `POST /api/photos` route (method suffix in filename)
+  - `uploads/` directory is already gitignored in apps/web/.gitignore
 ---
