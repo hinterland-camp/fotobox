@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import CameraPreview from './components/CameraPreview.vue'
+import CountdownOverlay from './components/CountdownOverlay.vue'
 import PasswordDialog from './components/PasswordDialog.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 
@@ -10,11 +11,24 @@ const currentScreen = ref<Screen>('photobooth')
 const showPasswordDialog = ref(false)
 const cameraDeviceId = ref('')
 const framePath = ref('')
+const countdownSeconds = ref(3)
+const countdownActive = ref(false)
 
 async function loadPhotoboothSettings(): Promise<void> {
   const settings = (await window.api.settings.getAll()) as Record<string, unknown>
   cameraDeviceId.value = (settings.cameraDeviceId as string) || ''
   framePath.value = (settings.framePath as string) || ''
+  countdownSeconds.value = (settings.countdownSeconds as number) || 3
+}
+
+function handlePhotoboothClick(): void {
+  if (countdownActive.value || showPasswordDialog.value) return
+  countdownActive.value = true
+}
+
+function handleCountdownComplete(): void {
+  countdownActive.value = false
+  // TODO: trigger photo capture (US-012)
 }
 
 function handleKeydown(e: KeyboardEvent): void {
@@ -51,7 +65,11 @@ async function returnToPhotobooth(): Promise<void> {
 
 <template>
   <!-- Photobooth Screen -->
-  <div v-if="currentScreen === 'photobooth'" class="relative h-screen w-screen bg-black">
+  <div
+    v-if="currentScreen === 'photobooth'"
+    class="relative h-screen w-screen bg-black"
+    @click="handlePhotoboothClick"
+  >
     <!-- Live camera preview -->
     <CameraPreview :camera-device-id="cameraDeviceId" />
 
@@ -64,9 +82,19 @@ async function returnToPhotobooth(): Promise<void> {
     />
 
     <!-- Tap prompt -->
-    <p class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-pulse text-lg text-white drop-shadow-lg">
+    <p
+      v-if="!countdownActive"
+      class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-pulse text-lg text-white drop-shadow-lg"
+    >
       Tap anywhere to take a photo
     </p>
+
+    <!-- Countdown overlay -->
+    <CountdownOverlay
+      :active="countdownActive"
+      :duration="countdownSeconds"
+      @complete="handleCountdownComplete"
+    />
   </div>
 
   <!-- Settings Screen -->

@@ -1,0 +1,110 @@
+<script setup lang="ts">
+import { ref, watch, onUnmounted } from 'vue'
+
+const props = defineProps<{
+  active: boolean
+  duration: number
+}>()
+
+const emit = defineEmits<{
+  complete: []
+}>()
+
+const currentCount = ref(0)
+const showFlash = ref(false)
+const animKey = ref(0)
+let timer: ReturnType<typeof setInterval> | null = null
+
+function startCountdown(): void {
+  stopCountdown()
+  currentCount.value = props.duration
+  animKey.value++
+  timer = setInterval(() => {
+    currentCount.value--
+    animKey.value++
+    if (currentCount.value <= 0) {
+      stopCountdown()
+      triggerFlash()
+    }
+  }, 1000)
+}
+
+function stopCountdown(): void {
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
+}
+
+function triggerFlash(): void {
+  showFlash.value = true
+  setTimeout(() => {
+    showFlash.value = false
+    emit('complete')
+  }, 300)
+}
+
+watch(() => props.active, (active) => {
+  if (active) {
+    startCountdown()
+  } else {
+    stopCountdown()
+    currentCount.value = 0
+  }
+})
+
+onUnmounted(() => {
+  stopCountdown()
+})
+</script>
+
+<template>
+  <Teleport to="body">
+    <!-- Countdown number -->
+    <div
+      v-if="active && currentCount > 0"
+      class="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
+    >
+      <span
+        :key="animKey"
+        class="countdown-number text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
+      >
+        {{ currentCount }}
+      </span>
+    </div>
+
+    <!-- White flash -->
+    <div
+      v-if="showFlash"
+      class="pointer-events-none fixed inset-0 z-50 bg-white"
+    />
+  </Teleport>
+</template>
+
+<style scoped>
+.countdown-number {
+  font-size: 180px;
+  font-weight: 800;
+  line-height: 1;
+  animation: countdown-tick 0.8s ease-out;
+}
+
+@keyframes countdown-tick {
+  0% {
+    opacity: 0;
+    transform: scale(2);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.3;
+    transform: scale(0.9);
+  }
+}
+</style>
