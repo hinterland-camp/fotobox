@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import CameraPreview from './components/CameraPreview.vue'
 import CountdownOverlay from './components/CountdownOverlay.vue'
 import PasswordDialog from './components/PasswordDialog.vue'
+import ResultScreen from './components/ResultScreen.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 
 interface CompositedPhoto {
@@ -10,13 +11,15 @@ interface CompositedPhoto {
   blob: Blob
 }
 
-type Screen = 'photobooth' | 'settings'
+type Screen = 'photobooth' | 'result' | 'settings'
 
 const currentScreen = ref<Screen>('photobooth')
 const showPasswordDialog = ref(false)
 const cameraDeviceId = ref('')
 const framePath = ref('')
 const countdownSeconds = ref(3)
+const autoReturnSeconds = ref(30)
+const printerName = ref('')
 const countdownActive = ref(false)
 const capturedPhotoDataUrl = ref<string | null>(null)
 const cameraPreviewRef = ref<InstanceType<typeof CameraPreview> | null>(null)
@@ -26,6 +29,8 @@ async function loadPhotoboothSettings(): Promise<void> {
   cameraDeviceId.value = (settings.cameraDeviceId as string) || ''
   framePath.value = (settings.framePath as string) || ''
   countdownSeconds.value = (settings.countdownSeconds as number) || 3
+  autoReturnSeconds.value = (settings.autoReturnSeconds as number) || 30
+  printerName.value = (settings.printerName as string) || ''
 }
 
 function handlePhotoboothClick(): void {
@@ -102,6 +107,9 @@ async function handleCountdownComplete(): Promise<void> {
     // Save locally immediately after compositing
     const filePath = await savePhoto(result.blob)
     savedPhotoPath.value = filePath
+
+    // Transition to result screen
+    currentScreen.value = 'result'
   }
   countdownActive.value = false
 }
@@ -131,10 +139,17 @@ async function handlePasswordSuccess(): Promise<void> {
   currentScreen.value = 'settings'
 }
 
+function handleNewPhoto(): void {
+  capturedPhotoDataUrl.value = null
+  compositedPhoto.value = null
+  savedPhotoPath.value = null
+  currentScreen.value = 'photobooth'
+}
+
 async function returnToPhotobooth(): Promise<void> {
   await window.api.kiosk.enterKiosk()
   await loadPhotoboothSettings()
-  currentScreen.value = 'photobooth'
+  handleNewPhoto()
 }
 </script>
 
@@ -171,6 +186,17 @@ async function returnToPhotobooth(): Promise<void> {
       @complete="handleCountdownComplete"
     />
   </div>
+
+  <!-- Result Screen -->
+  <ResultScreen
+    v-else-if="currentScreen === 'result' && compositedPhoto"
+    :photo-data-url="compositedPhoto.dataUrl"
+    :auto-return-seconds="autoReturnSeconds"
+    :printer-configured="!!printerName"
+    @new-photo="handleNewPhoto"
+    @print="() => {}"
+    @share="() => {}"
+  />
 
   <!-- Settings Screen -->
   <SettingsPanel

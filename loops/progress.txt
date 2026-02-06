@@ -35,6 +35,8 @@
 - Frame loaded via `file://` protocol in Electron renderer for canvas compositing (same as preview overlay)
 - `compositedPhoto` ref in App.vue is the handoff for US-014 (save) and US-015 (result screen)
 - Photos IPC: `photos:save` accepts ArrayBuffer, writes PNG to save dir, returns file path — `savedPhotoPath` ref stores result
+- ResultScreen component: receives `photoDataUrl` (composited), `autoReturnSeconds`, `printerConfigured` props; emits `newPhoto`, `print`, `share`
+- App.vue screen flow: `'photobooth'` → countdown → capture → composite → save → `'result'` → `handleNewPhoto()` back to `'photobooth'`
 
 ---
 
@@ -263,4 +265,23 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - IPC transfers ArrayBuffer from renderer to main — `Buffer.from(arrayBuffer)` converts it for `writeFileSync`
   - `blob.arrayBuffer()` is the async way to convert a Blob to ArrayBuffer for IPC transfer
   - `savedPhotoPath` ref in App.vue is the handoff for US-015 (result screen), US-016 (print), and US-017 (share)
+---
+
+## 2026-02-06 - US-015
+- Created `ResultScreen.vue` component with photo display, action buttons, and auto-return timer
+- Result screen shows the final composited photo large and centered on a black background
+- Three action buttons: New Photo (white, primary), Print (visible only when printer configured), Share (always visible)
+- QR code placeholder area in bottom-right (150x150px, to be populated by US-023)
+- Auto-return timer counts down from configured `autoReturnSeconds` (default 30s); any interaction resets the timer
+- Timer text shown at bottom: "Returning in Xs"
+- Updated App.vue: added `'result'` screen state, transitions to result after compositing+saving
+- `handleNewPhoto()` clears photo state and returns to camera preview
+- Loaded `autoReturnSeconds` and `printerName` from settings in `loadPhotoboothSettings()`
+- Print/Share emit handlers are no-op stubs (`() => {}`) — to be implemented in US-016 and US-017
+- Files changed: apps/desktop/src/renderer/src/components/ResultScreen.vue (new), apps/desktop/src/renderer/src/App.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - ResultScreen receives `photoDataUrl`, `autoReturnSeconds`, `printerConfigured` as props; emits `newPhoto`, `print`, `share`
+  - Auto-return timer uses `setInterval` with cleanup in `onUnmounted`; interaction resets remaining seconds
+  - `@click.stop` on buttons prevents bubbling to the interaction handler on the container
+  - Print/Share button handlers are wired as no-op arrow functions in App.vue template — replace with real handlers in US-016/US-017
 ---
