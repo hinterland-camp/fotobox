@@ -9,10 +9,12 @@ type Screen = 'photobooth' | 'settings'
 const currentScreen = ref<Screen>('photobooth')
 const showPasswordDialog = ref(false)
 const cameraDeviceId = ref('')
+const framePath = ref('')
 
-async function loadCameraSettings(): Promise<void> {
-  const id = await window.api.settings.get('cameraDeviceId')
-  cameraDeviceId.value = (id as string) || ''
+async function loadPhotoboothSettings(): Promise<void> {
+  const settings = (await window.api.settings.getAll()) as Record<string, unknown>
+  cameraDeviceId.value = (settings.cameraDeviceId as string) || ''
+  framePath.value = (settings.framePath as string) || ''
 }
 
 function handleKeydown(e: KeyboardEvent): void {
@@ -23,7 +25,7 @@ function handleKeydown(e: KeyboardEvent): void {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
-  loadCameraSettings()
+  loadPhotoboothSettings()
 })
 
 onUnmounted(() => {
@@ -42,7 +44,7 @@ async function handlePasswordSuccess(): Promise<void> {
 
 async function returnToPhotobooth(): Promise<void> {
   await window.api.kiosk.enterKiosk()
-  await loadCameraSettings()
+  await loadPhotoboothSettings()
   currentScreen.value = 'photobooth'
 }
 </script>
@@ -52,6 +54,14 @@ async function returnToPhotobooth(): Promise<void> {
   <div v-if="currentScreen === 'photobooth'" class="relative h-screen w-screen bg-black">
     <!-- Live camera preview -->
     <CameraPreview :camera-device-id="cameraDeviceId" />
+
+    <!-- Frame overlay -->
+    <img
+      v-if="framePath"
+      :src="`file://${framePath}`"
+      alt=""
+      class="pointer-events-none absolute inset-0 h-full w-full object-cover"
+    />
 
     <!-- Tap prompt -->
     <p class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-pulse text-lg text-white drop-shadow-lg">

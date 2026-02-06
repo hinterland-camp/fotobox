@@ -25,6 +25,9 @@
 - Electron `PrinterInfo` has `name`, `displayName`, `description`, `options` — NOT `isDefault`
 - Electron file input `<input type="file">` gives `file.path` (absolute path) in Electron renderer — use this for saving frame paths
 - SettingsPanel uses `@change` (not `@input`) to save settings on blur/select, avoiding excessive IPC calls
+- CameraPreview component exposes `videoRef` and `stream` via `defineExpose` for capture (US-012) and compositing (US-013)
+- Frame overlay: simple `<img>` with `absolute inset-0 pointer-events-none object-cover` over camera preview; `v-if` on framePath to hide when unconfigured
+- Prefer `settings:getAll` over multiple `settings:get` calls when loading multiple settings at once
 
 ---
 
@@ -158,4 +161,35 @@
   - Use `@change` events (not `@input`) for saving settings to avoid excessive IPC calls during typing
   - `navigator.mediaDevices.getUserMedia` must be called first to get labeled device names in `enumerateDevices`
   - `webContents.getPrintersAsync()` is the modern async API for printer listing in Electron
+---
+
+## 2026-02-06 - US-009
+- Created CameraPreview.vue component with live camera feed using getUserMedia
+- Component accepts `cameraDeviceId` prop and uses it as `deviceId: { exact }` constraint
+- Handles camera errors with friendly messages (NotAllowedError, NotFoundError, OverconstrainedError)
+- Camera stops/restarts when device ID changes via watcher
+- Properly cleans up media stream tracks on unmount
+- Integrated into App.vue replacing placeholder camera area
+- Camera feed fills full screen with `object-fit: cover` and dark background
+- Settings are reloaded when returning from settings panel to photobooth
+- Tap prompt overlaid at bottom of screen with white text and drop shadow
+- Files changed: apps/desktop/src/renderer/src/components/CameraPreview.vue (new), apps/desktop/src/renderer/src/App.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - `getUserMedia` with `{ deviceId: { exact: id } }` selects a specific camera; passing `true` for video uses the default camera
+  - Camera stream tracks must be explicitly stopped via `track.stop()` — garbage collection alone won't release the camera
+  - `defineExpose` on CameraPreview allows parent components to access videoRef/stream for future capture needs (US-012)
+  - `v-show` is better than `v-if` for the video element to keep it in the DOM while error state toggles
+---
+
+## 2026-02-06 - US-010
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added frame overlay on top of live camera preview in the photobooth screen
+- Refactored `loadCameraSettings()` to `loadPhotoboothSettings()` — now loads both `cameraDeviceId` and `framePath` from settings in one call
+- Frame image displayed with `absolute inset-0` positioning, `object-cover`, and `pointer-events-none`
+- Frame conditionally rendered with `v-if="framePath"` — no overlay when no frame configured
+- Files changed: apps/desktop/src/renderer/src/App.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - Frame overlay is a simple `<img>` absolutely positioned over the camera preview — no component needed
+  - `pointer-events-none` ensures the frame overlay doesn't intercept tap/click events for photo capture (US-011)
+  - Consolidating multiple setting reads into `settings:getAll` is more efficient than multiple `settings:get` calls
 ---
