@@ -1,0 +1,24 @@
+{
+  "name": "@fotobox/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "typecheck": "nuxt typecheck",
+    "lint": "oxlint .",
+    "format": "echo 'no formatter configured'"
+  },
+  "dependencies": {
+    "nuxt": "^4",
+    "vue": "^3",
+    "vue-router": "^4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4",
+    "tailwindcss": "^4",
+    "typescript": "^5.9.3"
+  }
+}
