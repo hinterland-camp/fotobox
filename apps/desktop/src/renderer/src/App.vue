@@ -132,6 +132,11 @@ async function handlePrint(): Promise<void> {
   }
 }
 
+async function handleShare(): Promise<void> {
+  if (!savedPhotoPath.value) return
+  await window.api.photos.share(savedPhotoPath.value)
+}
+
 function handleKeydown(e: KeyboardEvent): void {
   if (e.key === 'Escape' && currentScreen.value === 'photobooth' && !showPasswordDialog.value) {
     showPasswordDialog.value = true
@@ -214,7 +219,7 @@ async function returnToPhotobooth(): Promise<void> {
     :printer-configured="!!printerName"
     @new-photo="handleNewPhoto"
     @print="handlePrint"
-    @share="() => {}"
+    @share="handleShare"
   />
 
   <!-- Settings Screen -->

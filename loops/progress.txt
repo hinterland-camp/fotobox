@@ -36,6 +36,8 @@
 - `compositedPhoto` ref in App.vue is the handoff for US-014 (save) and US-015 (result screen)
 - Photos IPC: `photos:save` accepts ArrayBuffer, writes PNG to save dir, returns file path — `savedPhotoPath` ref stores result
 - Print IPC: `photos:print` creates hidden BrowserWindow with photo HTML, uses `webContents.print({ silent: true, deviceName })`, closes window after
+- Share IPC: `photos:share` uses `ShareMenu` on macOS (native share sheet), falls back to `dialog.showSaveDialog` on other platforms
+- Electron `ShareMenu.popup()` takes `{ window: BaseWindow }` not `{ browserWindow }` — PopupOptions type uses `window` property
 - ResultScreen component: receives `photoDataUrl` (composited), `autoReturnSeconds`, `printerConfigured` props; emits `newPhoto`, `print`, `share`
 - App.vue screen flow: `'photobooth'` → countdown → capture → composite → save → `'result'` → `handleNewPhoto()` back to `'photobooth'`
 
@@ -302,4 +304,19 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - `webContents.print()` callback signature is `(success, failureReason)` — failureReason is a string
   - Hidden print window needs `await webContents.executeJavaScript(...)` to wait for image load before printing
   - `<Teleport to="body">` with `fixed z-50` for toast notifications ensures they render above all app content
+---
+
+## 2026-02-06 - US-017
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Implemented share photo via system share dialog
+- Added `photos:share` IPC handler in main process using Electron's `ShareMenu` on macOS for native share sheet
+- Fallback to `dialog.showSaveDialog` + `copyFileSync` on Windows/Linux when native share is unavailable
+- Added `share(filePath)` method to preload photos API and type declarations
+- Wired `handleShare()` in App.vue replacing the no-op `() => {}` stub
+- Files changed: apps/desktop/src/main/index.ts, apps/desktop/src/preload/index.ts, apps/desktop/src/preload/index.d.ts, apps/desktop/src/renderer/src/App.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - Electron `ShareMenu` is macOS-only — must provide fallback for other platforms
+  - `ShareMenu.popup()` options use `window: BaseWindow` property, NOT `browserWindow` (the docs say browserWindow but the TypeScript types say `window`)
+  - `ShareMenu` constructor takes `SharingItem { filePaths?: string[], texts?: string[], urls?: string[] }`
+  - For cross-platform share fallback, `dialog.showSaveDialog` + `fs.copyFileSync` provides a "Save As" experience
 ---

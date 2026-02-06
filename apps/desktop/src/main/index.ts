@@ -1,5 +1,5 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, ShareMenu, shell } from 'electron'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 
@@ -219,6 +219,31 @@ app.whenReady().then(() => {
         }
       )
     })
+  })
+
+  // --- Share IPC handler ---
+
+  ipcMain.handle('photos:share', async (_event, filePath: string): Promise<boolean> => {
+    if (!existsSync(filePath)) return false
+
+    if (process.platform === 'darwin') {
+      const win = BrowserWindow.getAllWindows()[0]
+      if (!win) return false
+      const menu = new ShareMenu({ filePaths: [filePath] })
+      menu.popup({ window: win })
+      return true
+    }
+
+    // Fallback: Save As dialog for Windows/Linux
+    const result = await dialog.showSaveDialog({
+      defaultPath: filePath,
+      filters: [{ name: 'Images', extensions: ['png'] }]
+    })
+
+    if (result.canceled || !result.filePath) return false
+
+    copyFileSync(filePath, result.filePath)
+    return true
   })
 
   // --- Printers IPC handler ---

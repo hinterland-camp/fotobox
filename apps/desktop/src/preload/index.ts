@@ -16,7 +16,8 @@ const api = {
   },
   photos: {
     save: (buffer: ArrayBuffer): Promise<string> => ipcRenderer.invoke('photos:save', buffer),
-    print: (filePath: string): Promise<boolean> => ipcRenderer.invoke('photos:print', filePath)
+    print: (filePath: string): Promise<boolean> => ipcRenderer.invoke('photos:print', filePath),
+    share: (filePath: string): Promise<boolean> => ipcRenderer.invoke('photos:share', filePath)
   },
   printers: {
     getAll: (): Promise<Array<{ name: string; displayName: string }>> =>
