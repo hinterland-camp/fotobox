@@ -1,0 +1,23 @@
+## Codebase Patterns
+- Root monorepo uses Turborepo with pnpm workspaces (apps/* and packages/*)
+- Vitest 4 uses `defineConfig` with `test.projects` instead of deprecated `defineWorkspace`
+- OxLint configured at root with oxlint.json
+- TypeScript base config at root tsconfig.json (ES2022, bundler module resolution)
+- pnpm 10 requires `pnpm.onlyBuiltDependencies` in package.json for native deps (esbuild)
+
+---
+
+## 2026-02-06 - US-001
+- Initialized Turborepo monorepo with pnpm workspaces
+- Created root package.json with turbo scripts (dev, build, lint, format, test, typecheck)
+- Created pnpm-workspace.yaml defining apps/* and packages/* workspaces
+- Created turbo.json with dev, build, lint, format, test, typecheck pipelines
+- Configured OxLint at root level with oxlint.json
+- Configured Vitest with vitest.workspace.ts (using Vitest 4 `defineConfig` with projects)
+- Created root tsconfig.json and .gitignore
+- Files changed: package.json, pnpm-workspace.yaml, turbo.json, oxlint.json, vitest.workspace.ts, tsconfig.json, .gitignore
+- **Learnings for future iterations:**
+  - Vitest 4 replaced `defineWorkspace` with `test.projects` inside `defineConfig`
+  - pnpm 10 blocks native dependency builds by default; use `pnpm.onlyBuiltDependencies` in package.json
+  - Turbo runs 0 tasks gracefully when no workspace packages exist yet
+---
