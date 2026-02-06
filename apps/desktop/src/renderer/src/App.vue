@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import type { Photo, UploadResponse } from '@fotobox/shared'
+
+// Types available for use in the desktop renderer
+const _typeCheck: Photo | UploadResponse | null = null
+void _typeCheck
 </script>
 
 <template>

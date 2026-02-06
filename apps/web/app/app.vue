@@ -1,3 +1,11 @@
+<script setup lang="ts">
+import type { Photo, UploadResponse } from '@fotobox/shared'
+
+// Types available for use in the web app
+const _typeCheck: Photo | UploadResponse | null = null
+void _typeCheck
+</script>
+
 <template>
   <div class="flex min-h-screen items-center justify-center bg-gray-950 text-white">
     <div class="text-center">

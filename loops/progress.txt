@@ -12,6 +12,8 @@
 - Electron desktop app uses `@electron-toolkit/utils`, `@electron-toolkit/preload`, and `@electron-toolkit/tsconfig`
 - Desktop typecheck: `tsc` for node (main/preload) + `vue-tsc` for web (renderer), combined via `pnpm run typecheck:node && pnpm run typecheck:web`
 - Root `pnpm.overrides` with `"@types/node": "^22"` needed to avoid dual vite type resolution (node 22 vs 24)
+- Shared types package at `packages/shared` uses `workspace:*` protocol for inter-workspace deps
+- Shared package uses `tsc` build with `exports` field pointing to `dist/index.js` and `dist/index.d.ts`
 
 ---
 
@@ -64,4 +66,17 @@
   - Desktop tsconfig uses project references: `tsconfig.node.json` (main+preload) and `tsconfig.web.json` (renderer) extending `@electron-toolkit/tsconfig`
   - `@electron-toolkit/utils` provides `is.dev`, `electronApp`, and `optimizer` helpers
   - `pnpm.onlyBuiltDependencies` in workspace-level package.json is ignored; must be at root
+---
+
+## 2026-02-06 - US-004
+- Created packages/shared workspace with TypeScript configured
+- Defined Photo type: { id, filename, originalName, uploadedAt, fileSize, downloadCount }
+- Defined UploadResponse type: { id, downloadUrl }
+- Added @fotobox/shared as workspace:* dependency to both apps/web and apps/desktop
+- Added type imports in both apps' main components to verify resolution
+- Files changed: packages/shared/ (package.json, tsconfig.json, src/index.ts), apps/web/package.json, apps/web/app/app.vue, apps/desktop/package.json, apps/desktop/src/renderer/src/App.vue, pnpm-lock.yaml, loops/prd.json
+- **Learnings for future iterations:**
+  - Shared types package uses `tsc` build to emit .js and .d.ts to dist/, with `exports` field in package.json
+  - `workspace:*` protocol in dependencies links workspace packages; pnpm resolves them automatically
+  - turbo `dependsOn: ["^build"]` ensures shared package is built before consuming apps typecheck
 ---

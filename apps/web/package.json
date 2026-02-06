@@ -12,6 +12,7 @@
     "format": "echo 'no formatter configured'"
   },
   "dependencies": {
+    "@fotobox/shared": "workspace:*",
     "nuxt": "^4",
     "vue": "^3",
     "vue-router": "^4"
