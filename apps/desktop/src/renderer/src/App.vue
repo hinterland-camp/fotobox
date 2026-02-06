@@ -85,6 +85,12 @@ async function compositePhoto(photoDataUrl: string): Promise<CompositedPhoto> {
 }
 
 const compositedPhoto = ref<CompositedPhoto | null>(null)
+const savedPhotoPath = ref<string | null>(null)
+
+async function savePhoto(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer()
+  return window.api.photos.save(buffer)
+}
 
 async function handleCountdownComplete(): Promise<void> {
   const dataUrl = capturePhoto()
@@ -92,6 +98,10 @@ async function handleCountdownComplete(): Promise<void> {
     capturedPhotoDataUrl.value = dataUrl
     const result = await compositePhoto(dataUrl)
     compositedPhoto.value = result
+
+    // Save locally immediately after compositing
+    const filePath = await savePhoto(result.blob)
+    savedPhotoPath.value = filePath
   }
   countdownActive.value = false
 }

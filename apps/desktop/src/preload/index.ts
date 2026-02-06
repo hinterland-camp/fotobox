@@ -14,6 +14,9 @@ const api = {
     set: (key: string, value: unknown): Promise<void> =>
       ipcRenderer.invoke('settings:set', key, value)
   },
+  photos: {
+    save: (buffer: ArrayBuffer): Promise<string> => ipcRenderer.invoke('photos:save', buffer)
+  },
   printers: {
     getAll: (): Promise<Array<{ name: string; displayName: string }>> =>
       ipcRenderer.invoke('printers:getAll')

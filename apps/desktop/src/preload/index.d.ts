@@ -12,6 +12,10 @@ interface SettingsAPI {
   set(key: string, value: unknown): Promise<void>
 }
 
+interface PhotosAPI {
+  save(buffer: ArrayBuffer): Promise<string>
+}
+
 interface PrinterInfo {
   name: string
   displayName: string
@@ -24,6 +28,7 @@ interface PrintersAPI {
 interface FotoboxAPI {
   kiosk: KioskAPI
   settings: SettingsAPI
+  photos: PhotosAPI
   printers: PrintersAPI
 }
 

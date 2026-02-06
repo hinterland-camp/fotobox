@@ -34,6 +34,7 @@
 - Compositing: `compositePhoto()` returns `CompositedPhoto { dataUrl, blob }` — draws photo then frame on canvas at native resolution
 - Frame loaded via `file://` protocol in Electron renderer for canvas compositing (same as preview overlay)
 - `compositedPhoto` ref in App.vue is the handoff for US-014 (save) and US-015 (result screen)
+- Photos IPC: `photos:save` accepts ArrayBuffer, writes PNG to save dir, returns file path — `savedPhotoPath` ref stores result
 
 ---
 
@@ -248,4 +249,18 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - `canvas.toBlob()` is callback-based — wrap in Promise for async/await usage
   - `getContext('2d')!` non-null assertion is safe for newly-created canvas elements (never returns null)
   - `compositePhoto` ref is the handoff point for US-014 (local save) and US-015 (result screen)
+---
+
+## 2026-02-06 - US-014
+- Implemented local photo saving via Electron IPC after compositing
+- Added `photos:save` IPC handler in main process: accepts ArrayBuffer, writes PNG to save directory
+- Files named with timestamp pattern: `fotobox-YYYY-MM-DD-HHmmss.png`
+- Save directory created automatically if it doesn't exist (defaults to ~/Pictures/Fotobox/)
+- Added `photos` API to preload with `save(buffer)` method and type declarations
+- App.vue calls `savePhoto()` immediately after compositing, stores saved path in `savedPhotoPath` ref
+- Files changed: apps/desktop/src/main/index.ts, apps/desktop/src/preload/index.ts, apps/desktop/src/preload/index.d.ts, apps/desktop/src/renderer/src/App.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - IPC transfers ArrayBuffer from renderer to main — `Buffer.from(arrayBuffer)` converts it for `writeFileSync`
+  - `blob.arrayBuffer()` is the async way to convert a Blob to ArrayBuffer for IPC transfer
+  - `savedPhotoPath` ref in App.vue is the handoff for US-015 (result screen), US-016 (print), and US-017 (share)
 ---
