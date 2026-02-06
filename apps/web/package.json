@@ -13,12 +13,14 @@
   },
   "dependencies": {
     "@fotobox/shared": "workspace:*",
+    "better-sqlite3": "^12.6.2",
     "nuxt": "^4",
     "vue": "^3",
     "vue-router": "^4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4",
+    "@types/better-sqlite3": "^7.6.13",
     "tailwindcss": "^4",
     "typescript": "^5.9.3"
   }
