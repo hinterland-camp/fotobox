@@ -1,0 +1,23 @@
+{
+  "name": "fotobox",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.25.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "turbo run format",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  },
+  "devDependencies": {
+    "oxlint": "^1.43.0",
+    "turbo": "^2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
