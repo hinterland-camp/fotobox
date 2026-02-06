@@ -54,7 +54,8 @@
 - Upload IPC: `photos:upload` in main process reads saved file, sends as FormData via `net.fetch` to server's `POST /api/photos`
 - Upload runs silently in background (no await in photo flow) — result stored in `uploadResult` ref for QR code (US-023)
 - Upload status tracked via `uploadStatus` ref: 'idle' | 'uploading' | 'success' | 'failed'
-- Failed uploads pushed to in-memory `uploadRetryQueue` array (persisted queue in US-024)
+- Upload queue persisted to `app.getPath('userData')/upload-queue.json` — IPC: `uploadQueue:getAll`, `uploadQueue:add`, `uploadQueue:remove`, `uploadQueue:retryOne`
+- Background retry: `setInterval(retryQueuedUploads, 30_000)` in App.vue `onMounted` — iterates queue items and calls `uploadQueue:retryOne` for each
 - ResultScreen receives `uploadStatus`, `uploadResult`, `serverUrl` props — shows "Uploading...", "Offline", or QR code image
 - QR code: `qrcode` package generates data URL via `QRCode.toDataURL(url, { width, margin, color })` — rendered as `<img>` in ResultScreen
 
@@ -445,4 +446,25 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - QR code `width` option controls the pixel dimensions, `margin` controls quiet zone (1 module = tight fit)
   - `immediate: true` on watch ensures QR generation runs if uploadResult is already populated when component mounts
   - Full download URL = `serverUrl.replace(/\/$/, '') + downloadUrl` — strip trailing slash to avoid double-slash
+---
+
+## 2026-02-06 - US-024
+- Implemented offline upload queue with persistence and background retry
+- Created upload queue functions in main process: `loadUploadQueue()`, `saveUploadQueue()`, `addToUploadQueue()`, `removeFromUploadQueue()`
+- Queue stored as JSON array in `app.getPath('userData')/upload-queue.json` with `{ filePath, addedAt }` items
+- Added IPC handlers: `uploadQueue:getAll`, `uploadQueue:add`, `uploadQueue:remove`, `uploadQueue:retryOne`
+- `uploadQueue:retryOne` re-reads the file from disk, uploads via `net.fetch`, removes from queue on success
+- Missing files are automatically removed from queue during retry (cleanup for deleted photos)
+- Added `uploadQueue` API to preload with `getAll`, `add`, `remove`, `retryOne` methods and type declarations
+- Replaced in-memory `uploadRetryQueue` array in App.vue with persistent queue via `window.api.uploadQueue.add()`
+- Added `retryQueuedUploads()` function that iterates all queue items and calls `retryOne` for each
+- Background retry runs every 30 seconds via `setInterval` in `onMounted`, cleaned up in `onUnmounted`
+- Camera, capture, frame overlay, local save, and print all work without internet — queue operations are fire-and-forget
+- Files changed: apps/desktop/src/main/index.ts, apps/desktop/src/preload/index.ts, apps/desktop/src/preload/index.d.ts, apps/desktop/src/renderer/src/App.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - Persistent queue pattern: JSON file in `app.getPath('userData')` + load/save/add/remove helpers in main process
+  - `setInterval` in Vue `onMounted` with cleanup in `onUnmounted` for background tasks — simple and effective
+  - Queue deduplication via `filePath` check in `addToUploadQueue` prevents double-queueing the same file
+  - `retryOne` handles missing files by removing them from queue — keeps queue clean over time
+  - IPC handlers for queue CRUD enable renderer to manage queue without direct file access
 ---
