@@ -12,9 +12,19 @@ interface SettingsAPI {
   set(key: string, value: unknown): Promise<void>
 }
 
+interface PrinterInfo {
+  name: string
+  displayName: string
+}
+
+interface PrintersAPI {
+  getAll(): Promise<PrinterInfo[]>
+}
+
 interface FotoboxAPI {
   kiosk: KioskAPI
   settings: SettingsAPI
+  printers: PrintersAPI
 }
 
 declare global {

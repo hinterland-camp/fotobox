@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import PasswordDialog from './components/PasswordDialog.vue'
+import SettingsPanel from './components/SettingsPanel.vue'
 
 type Screen = 'photobooth' | 'settings'
 
@@ -52,20 +53,11 @@ async function returnToPhotobooth(): Promise<void> {
     <p class="mt-8 animate-pulse text-lg text-zinc-400">Tap anywhere to take a photo</p>
   </div>
 
-  <!-- Settings Screen (placeholder) -->
-  <div v-else-if="currentScreen === 'settings'" class="flex h-screen w-screen flex-col items-center justify-center bg-zinc-950">
-    <div class="w-full max-w-2xl rounded-2xl bg-zinc-900 p-8">
-      <h1 class="mb-6 text-2xl font-bold text-white">Settings</h1>
-      <p class="text-zinc-400">Settings panel will be implemented in a future update.</p>
-
-      <button
-        class="mt-8 rounded-lg bg-blue-600 px-6 py-3 text-white transition hover:bg-blue-500"
-        @click="returnToPhotobooth"
-      >
-        Return to Photobooth
-      </button>
-    </div>
-  </div>
+  <!-- Settings Screen -->
+  <SettingsPanel
+    v-else-if="currentScreen === 'settings'"
+    @return-to-photobooth="returnToPhotobooth"
+  />
 
   <!-- Password Dialog -->
   <PasswordDialog

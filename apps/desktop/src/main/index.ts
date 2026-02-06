@@ -152,6 +152,15 @@ app.whenReady().then(() => {
     saveSettings(settings)
   })
 
+  // --- Printers IPC handler ---
+
+  ipcMain.handle('printers:getAll', async () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (!win) return []
+    const printers = await win.webContents.getPrintersAsync()
+    return printers.map((p) => ({ name: p.name, displayName: p.displayName }))
+  })
+
   createWindow()
 
   app.on('activate', () => {

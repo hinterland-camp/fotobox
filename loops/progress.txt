@@ -22,6 +22,9 @@
 - Kiosk exit/enter: `win.setKiosk(false); win.setFullScreen(false); win.setAlwaysOnTop(false)` to exit; reverse to re-enter
 - Settings IPC: `settings:getAll` returns full Settings object, `settings:get(key)` returns single value, `settings:set(key, value)` updates and persists
 - Settings defaults: password='admin', countdownSeconds=3, savePath=~/Pictures/Fotobox/, autoReturnSeconds=30, empty strings for device/path/url fields
+- Electron `PrinterInfo` has `name`, `displayName`, `description`, `options` — NOT `isDefault`
+- Electron file input `<input type="file">` gives `file.path` (absolute path) in Electron renderer — use this for saving frame paths
+- SettingsPanel uses `@change` (not `@input`) to save settings on blur/select, avoiding excessive IPC calls
 
 ---
 
@@ -133,4 +136,26 @@
   - TypeScript `as Record<string, T>` cast on interface fails strict checking — use `as unknown as Record<string, T>` for dynamic key assignment
   - `loadSettings()` merges saved JSON with `defaultSettings` spread, so adding new fields to defaults is forward-compatible with existing settings files
   - `app.getPath('home')` gives home dir for constructing default save paths like `~/Pictures/Fotobox/`
+---
+
+## 2026-02-06 - US-008
+- Implemented full Settings panel UI with all configuration controls
+- Camera selection: dropdown lists available video input devices via `navigator.mediaDevices.enumerateDevices`
+- Frame upload: file picker for PNG files with preview of selected frame, remove button
+- Printer selection: dropdown lists available printers via Electron IPC (`webContents.getPrintersAsync`)
+- Server URL: text input for Nuxt web app URL
+- Password: password input to change kiosk exit password
+- Countdown duration: number input (1-10 seconds)
+- Return to Photobooth button re-enters kiosk mode
+- All changes save immediately via `settings:set` IPC on change events
+- Added `printers:getAll` IPC handler in main process
+- Updated preload with printers API and type declarations
+- Replaced settings placeholder in App.vue with SettingsPanel component
+- Files changed: apps/desktop/src/main/index.ts, apps/desktop/src/preload/index.ts, apps/desktop/src/preload/index.d.ts, apps/desktop/src/renderer/src/App.vue, apps/desktop/src/renderer/src/components/SettingsPanel.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - Electron `PrinterInfo` type only has `name`, `displayName`, `description`, `options` — no `isDefault` property
+  - Electron renderer's `<input type="file">` provides `file.path` with the absolute filesystem path
+  - Use `@change` events (not `@input`) for saving settings to avoid excessive IPC calls during typing
+  - `navigator.mediaDevices.getUserMedia` must be called first to get labeled device names in `enumerateDevices`
+  - `webContents.getPrintersAsync()` is the modern async API for printer listing in Electron
 ---

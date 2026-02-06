@@ -13,6 +13,10 @@ const api = {
     get: (key: string): Promise<unknown> => ipcRenderer.invoke('settings:get', key),
     set: (key: string, value: unknown): Promise<void> =>
       ipcRenderer.invoke('settings:set', key, value)
+  },
+  printers: {
+    getAll: (): Promise<Array<{ name: string; displayName: string }>> =>
+      ipcRenderer.invoke('printers:getAll')
   }
 }
 
