@@ -48,6 +48,9 @@
 - Nuxt API routes: `server/api/photos.post.ts` → `POST /api/photos`; `server/api/photos/[id].get.ts` → `GET /api/photos/:id`; `server/api/photos/[id]/download.get.ts` → `GET /api/photos/:id/download`
 - Nuxt `readMultipartFormData(event)` returns `MultiPartData[]` with `name`, `data` (Buffer), `type` (MIME), `filename`
 - Use `getRouterParam(event, 'id')` for dynamic route params and `sendStream(event, createReadStream(...))` for file downloads
+- Nuxt 4 pages live in `app/pages/` — `app.vue` needs `<NuxtPage />` to enable file-based routing
+- Nuxt `useSeoMeta()` composable sets Open Graph meta tags (ogTitle, ogImage, ogDescription, ogType)
+- Branding config: `branding.json` at Nuxt project root, served via `GET /api/branding` endpoint with fallback defaults
 
 ---
 
@@ -376,4 +379,27 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - `setResponseHeaders(event, { ... })` sets multiple response headers at once
   - Nuxt `server/api/photos.post.ts` and `server/api/photos/[id].get.ts` coexist — flat file for POST, directory for parameterized GET
   - DB columns use snake_case but API responses should use camelCase (matching the shared `Photo` type)
+---
+
+## 2026-02-06 - US-021
+- Implemented branded download page at /photo/:id in Nuxt web app
+- Updated app.vue to use `<NuxtPage />` for file-based routing
+- Created `app/pages/index.vue` preserving the existing landing page
+- Created `app/pages/photo/[id].vue` with:
+  - Photo metadata fetched from GET /api/photos/:id via useFetch
+  - Photo displayed in centered card layout with rounded corners and shadow
+  - Prominent Download button linking to /api/photos/:id/download with download icon SVG
+  - Branding section below photo: configurable logo, tagline, and up to 3 links
+  - Responsive mobile-first layout (max-w-lg, stacks vertically)
+  - Friendly 404 page with camera emoji and descriptive message for missing photos
+  - Open Graph meta tags: og:title, og:image, og:description, og:type via useSeoMeta
+- Created `branding.json` config file at project root with logo, tagline, and links fields
+- Created `server/api/branding.get.ts` endpoint to serve branding config with fallback defaults
+- Files changed: apps/web/app/app.vue, apps/web/app/pages/index.vue (new), apps/web/app/pages/photo/[id].vue (new), apps/web/branding.json (new), apps/web/server/api/branding.get.ts (new), loops/prd.json
+- **Learnings for future iterations:**
+  - Nuxt 4 pages live in `app/pages/` directory — must add `<NuxtPage />` to `app.vue` to enable routing
+  - `useSeoMeta()` is the Nuxt 4 composable for setting OG meta tags (replaces manual useHead meta array)
+  - `useFetch` with `await` in `<script setup>` enables SSR data fetching — the page renders on server with data
+  - Branding loaded from a JSON file via server API endpoint allows runtime customization without rebuilding
+  - `useFetch` error object has `.statusCode` property to distinguish 404 from other errors
 ---
