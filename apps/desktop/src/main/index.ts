@@ -1,12 +1,20 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, globalShortcut, shell } from 'electron'
 import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { electronApp, is } from '@electron-toolkit/utils'
+
+let allowQuit = false
+
+export function setAllowQuit(value: boolean): void {
+  allowQuit = value
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
     show: false,
+    fullscreen: true,
+    kiosk: true,
+    frame: false,
+    alwaysOnTop: true,
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -16,6 +24,13 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+  })
+
+  // Prevent window close unless explicitly allowed
+  mainWindow.on('close', (e) => {
+    if (!allowQuit) {
+      e.preventDefault()
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -33,9 +48,18 @@ function createWindow(): void {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.fotobox.desktop')
 
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
+  // Block OS keyboard shortcuts that could exit kiosk mode
+  const blockedShortcuts = [
+    'Alt+F4',
+    'CommandOrControl+Q',
+    'CommandOrControl+W'
+  ]
+
+  for (const shortcut of blockedShortcuts) {
+    globalShortcut.register(shortcut, () => {
+      // Intentionally empty — block the shortcut
+    })
+  }
 
   createWindow()
 
@@ -44,8 +68,13 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
+// Prevent quitting unless explicitly allowed
+app.on('before-quit', (e) => {
+  if (!allowQuit) {
+    e.preventDefault()
   }
+})
+
+app.on('window-all-closed', () => {
+  // Do nothing — kiosk mode should not quit on window close
 })

@@ -7,10 +7,16 @@ void _typeCheck
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-zinc-900">
-    <div class="text-center">
-      <h1 class="text-4xl font-bold text-white">Fotobox</h1>
-      <p class="mt-4 text-lg text-zinc-400">Desktop photo booth app</p>
+  <div class="flex h-screen w-screen flex-col items-center justify-center bg-black">
+    <!-- Camera preview area (placeholder) -->
+    <div class="flex aspect-video w-full max-w-4xl items-center justify-center bg-zinc-900">
+      <div class="text-center">
+        <div class="text-6xl text-zinc-600">📷</div>
+        <p class="mt-4 text-xl text-zinc-500">Camera preview will appear here</p>
+      </div>
     </div>
+
+    <!-- Tap prompt -->
+    <p class="mt-8 animate-pulse text-lg text-zinc-400">Tap anywhere to take a photo</p>
   </div>
 </template>

@@ -14,6 +14,8 @@
 - Root `pnpm.overrides` with `"@types/node": "^22"` needed to avoid dual vite type resolution (node 22 vs 24)
 - Shared types package at `packages/shared` uses `workspace:*` protocol for inter-workspace deps
 - Shared package uses `tsc` build with `exports` field pointing to `dist/index.js` and `dist/index.d.ts`
+- Kiosk mode: `globalShortcut.register` blocks Alt+F4/Cmd+Q/Cmd+W; `allowQuit` flag gates `before-quit` and window `close` events
+- Kiosk mode uses `setAllowQuit(true)` export from main/index.ts to allow programmatic exit (used by password-protected exit)
 
 ---
 
@@ -79,4 +81,18 @@
   - Shared types package uses `tsc` build to emit .js and .d.ts to dist/, with `exports` field in package.json
   - `workspace:*` protocol in dependencies links workspace packages; pnpm resolves them automatically
   - turbo `dependsOn: ["^build"]` ensures shared package is built before consuming apps typecheck
+---
+
+## 2026-02-06 - US-005
+- Configured BrowserWindow with fullscreen kiosk mode (fullscreen: true, kiosk: true, frame: false, alwaysOnTop: true)
+- Blocked OS keyboard shortcuts (Alt+F4, Cmd+Q, Cmd+W) via globalShortcut.register in main process
+- Added allowQuit flag with exported setAllowQuit() function for password-protected exit (US-006)
+- Prevented window close and app quit via close/before-quit event handlers gated by allowQuit flag
+- Updated App.vue with photobooth screen placeholder (camera preview area + tap prompt)
+- Files changed: apps/desktop/src/main/index.ts, apps/desktop/src/renderer/src/App.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - `globalShortcut.register` with empty callback effectively blocks keyboard shortcuts globally while app has focus
+  - Kiosk quit prevention needs both window `close` event and app `before-quit` event handlers
+  - `optimizer.watchWindowShortcuts` from @electron-toolkit/utils is not needed when manually managing shortcuts for kiosk mode
+  - Export an `allowQuit` flag from main process so future IPC handlers (password exit) can call `setAllowQuit(true); app.quit()`
 ---
