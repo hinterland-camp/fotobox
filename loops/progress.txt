@@ -3,7 +3,11 @@
 - Vitest 4 uses `defineConfig` with `test.projects` instead of deprecated `defineWorkspace`
 - OxLint configured at root with oxlint.json
 - TypeScript base config at root tsconfig.json (ES2022, bundler module resolution)
-- pnpm 10 requires `pnpm.onlyBuiltDependencies` in package.json for native deps (esbuild)
+- pnpm 10 requires `pnpm.onlyBuiltDependencies` in package.json for native deps (esbuild, @parcel/watcher)
+- Nuxt 4 uses `app/` directory structure by default (app.vue lives in app/app.vue)
+- Tailwind CSS v4 uses `@tailwindcss/vite` plugin directly instead of `@nuxtjs/tailwindcss` module
+- Nuxt 4 `tsconfig.json` in workspace just extends `.nuxt/tsconfig.json`
+- Check `~/.nuxtrc` for stale global module references that break builds
 
 ---
 
@@ -20,4 +24,21 @@
   - Vitest 4 replaced `defineWorkspace` with `test.projects` inside `defineConfig`
   - pnpm 10 blocks native dependency builds by default; use `pnpm.onlyBuiltDependencies` in package.json
   - Turbo runs 0 tasks gracefully when no workspace packages exist yet
+---
+
+## 2026-02-06 - US-002
+- Scaffolded Nuxt 4 app in apps/web with Tailwind CSS v4
+- Created nuxt.config.ts with @tailwindcss/vite plugin and CSS import
+- Created app/app.vue with Tailwind utility classes (dark bg, centered heading)
+- Created tailwind.config.ts with content paths for Nuxt 4 directory structure
+- Created app/assets/css/main.css with `@import "tailwindcss"`
+- Added @parcel/watcher to pnpm.onlyBuiltDependencies (required by Nuxt file watcher)
+- Fixed stale ~/.nuxtrc referencing old global @nuxt/devtools from Node 18
+- Files changed: package.json, pnpm-lock.yaml, apps/web/ (package.json, nuxt.config.ts, tsconfig.json, tailwind.config.ts, .gitignore, app/app.vue, app/assets/css/main.css)
+- **Learnings for future iterations:**
+  - Nuxt 4 defaults to app/ directory for source code (app.vue at app/app.vue)
+  - Tailwind CSS v4 with Nuxt uses @tailwindcss/vite plugin directly, not @nuxtjs/tailwindcss module
+  - ~/.nuxtrc can inject global modules that break builds — check for stale references
+  - Nuxt 4 workspace tsconfig.json just extends `.nuxt/tsconfig.json` (auto-generated)
+  - Nuxt `nuxt typecheck` works as the typecheck command for turbo pipeline
 ---
