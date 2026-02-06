@@ -23,6 +23,17 @@ const api = {
     ): Promise<{ id: string; downloadUrl: string } | null> =>
       ipcRenderer.invoke('photos:upload', filePath)
   },
+  uploadQueue: {
+    getAll: (): Promise<Array<{ filePath: string; addedAt: string }>> =>
+      ipcRenderer.invoke('uploadQueue:getAll'),
+    add: (filePath: string): Promise<void> => ipcRenderer.invoke('uploadQueue:add', filePath),
+    remove: (filePath: string): Promise<void> =>
+      ipcRenderer.invoke('uploadQueue:remove', filePath),
+    retryOne: (
+      filePath: string
+    ): Promise<{ id: string; downloadUrl: string } | null> =>
+      ipcRenderer.invoke('uploadQueue:retryOne', filePath)
+  },
   printers: {
     getAll: (): Promise<Array<{ name: string; displayName: string }>> =>
       ipcRenderer.invoke('printers:getAll')

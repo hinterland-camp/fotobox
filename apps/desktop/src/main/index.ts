@@ -3,6 +3,45 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { basename, join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 
+// --- Upload Queue ---
+
+interface QueueItem {
+  filePath: string
+  addedAt: string
+}
+
+function getUploadQueuePath(): string {
+  return join(app.getPath('userData'), 'upload-queue.json')
+}
+
+function loadUploadQueue(): QueueItem[] {
+  const queuePath = getUploadQueuePath()
+  if (!existsSync(queuePath)) return []
+  try {
+    const raw = readFileSync(queuePath, 'utf-8')
+    return JSON.parse(raw) as QueueItem[]
+  } catch {
+    return []
+  }
+}
+
+function saveUploadQueue(queue: QueueItem[]): void {
+  writeFileSync(getUploadQueuePath(), JSON.stringify(queue, null, 2), 'utf-8')
+}
+
+function addToUploadQueue(filePath: string): void {
+  const queue = loadUploadQueue()
+  // Avoid duplicates
+  if (queue.some((item) => item.filePath === filePath)) return
+  queue.push({ filePath, addedAt: new Date().toISOString() })
+  saveUploadQueue(queue)
+}
+
+function removeFromUploadQueue(filePath: string): void {
+  const queue = loadUploadQueue().filter((item) => item.filePath !== filePath)
+  saveUploadQueue(queue)
+}
+
 let allowQuit = false
 
 export function setAllowQuit(value: boolean): void {
@@ -274,6 +313,51 @@ app.whenReady().then(() => {
 
       const result = (await response.json()) as { id: string; downloadUrl: string }
       return result
+    }
+  )
+
+  // --- Upload Queue IPC handlers ---
+
+  ipcMain.handle('uploadQueue:getAll', (): QueueItem[] => {
+    return loadUploadQueue()
+  })
+
+  ipcMain.handle('uploadQueue:add', (_event, filePath: string) => {
+    addToUploadQueue(filePath)
+  })
+
+  ipcMain.handle('uploadQueue:remove', (_event, filePath: string) => {
+    removeFromUploadQueue(filePath)
+  })
+
+  ipcMain.handle(
+    'uploadQueue:retryOne',
+    async (_event, filePath: string): Promise<{ id: string; downloadUrl: string } | null> => {
+      const settings = loadSettings()
+      const serverUrl = settings.serverUrl
+      if (!serverUrl) return null
+      if (!existsSync(filePath)) {
+        removeFromUploadQueue(filePath)
+        return null
+      }
+
+      const fileData = readFileSync(filePath)
+      const filename = basename(filePath)
+      const mimeType = filename.endsWith('.png') ? 'image/png' : 'image/jpeg'
+
+      const formData = new FormData()
+      formData.append('image', new Blob([fileData], { type: mimeType }), filename)
+
+      const url = `${serverUrl.replace(/\/$/, '')}/api/photos`
+      try {
+        const response = await net.fetch(url, { method: 'POST', body: formData })
+        if (!response.ok) return null
+        const result = (await response.json()) as { id: string; downloadUrl: string }
+        removeFromUploadQueue(filePath)
+        return result
+      } catch {
+        return null
+      }
     }
   )
 

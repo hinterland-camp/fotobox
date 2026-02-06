@@ -104,13 +104,12 @@ const uploadStatus = ref<UploadStatus>('idle')
 const serverUrl = ref('')
 const printToast = ref<string | null>(null)
 let printToastTimer: ReturnType<typeof setTimeout> | null = null
+let retryIntervalId: ReturnType<typeof setInterval> | null = null
 
 async function savePhoto(blob: Blob): Promise<string> {
   const buffer = await blob.arrayBuffer()
   return window.api.photos.save(buffer)
 }
-
-const uploadRetryQueue: string[] = []
 
 async function uploadPhoto(filePath: string): Promise<void> {
   if (!serverUrl.value) {
@@ -125,12 +124,25 @@ async function uploadPhoto(filePath: string): Promise<void> {
       uploadResult.value = result
       uploadStatus.value = 'success'
     } else {
-      uploadRetryQueue.push(filePath)
+      await window.api.uploadQueue.add(filePath)
       uploadStatus.value = 'failed'
     }
   } catch {
-    uploadRetryQueue.push(filePath)
+    await window.api.uploadQueue.add(filePath)
     uploadStatus.value = 'failed'
+  }
+}
+
+async function retryQueuedUploads(): Promise<void> {
+  const queue = await window.api.uploadQueue.getAll()
+  if (queue.length === 0) return
+
+  for (const item of queue) {
+    const result = await window.api.uploadQueue.retryOne(item.filePath)
+    if (result) {
+      // Successfully uploaded — item already removed from queue in main process
+    }
+    // If failed, item stays in queue for next retry cycle
   }
 }
 
@@ -184,11 +196,15 @@ function handleKeydown(e: KeyboardEvent): void {
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   loadPhotoboothSettings()
+
+  // Background retry for queued uploads every 30 seconds
+  retryIntervalId = setInterval(retryQueuedUploads, 30_000)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
   if (printToastTimer) clearTimeout(printToastTimer)
+  if (retryIntervalId) clearInterval(retryIntervalId)
 })
 
 function handlePasswordCancel(): void {

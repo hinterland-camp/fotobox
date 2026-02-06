@@ -24,6 +24,18 @@ interface PhotosAPI {
   upload(filePath: string): Promise<UploadResult | null>
 }
 
+interface QueueItem {
+  filePath: string
+  addedAt: string
+}
+
+interface UploadQueueAPI {
+  getAll(): Promise<QueueItem[]>
+  add(filePath: string): Promise<void>
+  remove(filePath: string): Promise<void>
+  retryOne(filePath: string): Promise<UploadResult | null>
+}
+
 interface PrinterInfo {
   name: string
   displayName: string
@@ -37,6 +49,7 @@ interface FotoboxAPI {
   kiosk: KioskAPI
   settings: SettingsAPI
   photos: PhotosAPI
+  uploadQueue: UploadQueueAPI
   printers: PrintersAPI
 }
 
