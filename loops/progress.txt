@@ -8,6 +8,10 @@
 - Tailwind CSS v4 uses `@tailwindcss/vite` plugin directly instead of `@nuxtjs/tailwindcss` module
 - Nuxt 4 `tsconfig.json` in workspace just extends `.nuxt/tsconfig.json`
 - Check `~/.nuxtrc` for stale global module references that break builds
+- electron-vite 5.0 with `electron.vite.config.ts` for Electron + Vue 3 apps (three-process: main, preload, renderer)
+- Electron desktop app uses `@electron-toolkit/utils`, `@electron-toolkit/preload`, and `@electron-toolkit/tsconfig`
+- Desktop typecheck: `tsc` for node (main/preload) + `vue-tsc` for web (renderer), combined via `pnpm run typecheck:node && pnpm run typecheck:web`
+- Root `pnpm.overrides` with `"@types/node": "^22"` needed to avoid dual vite type resolution (node 22 vs 24)
 
 ---
 
@@ -41,4 +45,23 @@
   - ~/.nuxtrc can inject global modules that break builds — check for stale references
   - Nuxt 4 workspace tsconfig.json just extends `.nuxt/tsconfig.json` (auto-generated)
   - Nuxt `nuxt typecheck` works as the typecheck command for turbo pipeline
+---
+
+## 2026-02-06 - US-003
+- Scaffolded Electron desktop app in apps/desktop using electron-vite 5.0 with Vue 3 renderer
+- Created electron.vite.config.ts with main, preload, and renderer process configs
+- Configured Tailwind CSS v4 in renderer via @tailwindcss/vite plugin
+- Created src/main/index.ts with BrowserWindow setup and HMR dev URL loading
+- Created src/preload/index.ts with contextBridge for exposing Electron API
+- Created src/renderer with Vue 3 App.vue using Tailwind utility classes (dark bg, centered heading)
+- Added @types/node override in root package.json to fix dual vite type resolution conflict
+- Added electron to pnpm.onlyBuiltDependencies in root package.json
+- Files changed: package.json, pnpm-lock.yaml, apps/desktop/ (package.json, electron.vite.config.ts, electron-builder.yml, tsconfig.json, tsconfig.node.json, tsconfig.web.json, .gitignore, src/main/index.ts, src/preload/index.ts, src/preload/index.d.ts, src/renderer/index.html, src/renderer/src/main.ts, src/renderer/src/App.vue, src/renderer/src/assets/main.css, src/renderer/src/env.d.ts)
+- **Learnings for future iterations:**
+  - electron-vite 5.0 uses `electron.vite.config.ts` with `defineConfig({ main, preload, renderer })` for three-process config
+  - Electron brings in `@types/node@22` via transitive deps which conflicts with Nuxt's `@types/node@24` — use root `pnpm.overrides` to pin `@types/node`
+  - electron-vite outputs to `out/` directory (main, preload, renderer subdirs)
+  - Desktop tsconfig uses project references: `tsconfig.node.json` (main+preload) and `tsconfig.web.json` (renderer) extending `@electron-toolkit/tsconfig`
+  - `@electron-toolkit/utils` provides `is.dev`, `electronApp`, and `optimizer` helpers
+  - `pnpm.onlyBuiltDependencies` in workspace-level package.json is ignored; must be at root
 ---
