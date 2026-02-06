@@ -40,6 +40,11 @@
 - Electron `ShareMenu.popup()` takes `{ window: BaseWindow }` not `{ browserWindow }` — PopupOptions type uses `window` property
 - ResultScreen component: receives `photoDataUrl` (composited), `autoReturnSeconds`, `printerConfigured` props; emits `newPhoto`, `print`, `share`
 - App.vue screen flow: `'photobooth'` → countdown → capture → composite → save → `'result'` → `handleNewPhoto()` back to `'photobooth'`
+- Nuxt server uses `better-sqlite3` for SQLite — native module needs `pnpm.onlyBuiltDependencies` allowlist
+- Database utility at `server/utils/db.ts` exports `getDb()` and `initDb()` — Nitro plugin at `server/plugins/db.ts` calls `initDb()` on startup
+- Database stored at `./data/fotobox.db` (relative to Nuxt cwd), data/ and uploads/ directories gitignored
+- WAL mode enabled on SQLite for better concurrent read/write performance
+- Nuxt auto-imports `defineNitroPlugin` in server/plugins/ — no explicit import needed
 
 ---
 
@@ -319,4 +324,22 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - `ShareMenu.popup()` options use `window: BaseWindow` property, NOT `browserWindow` (the docs say browserWindow but the TypeScript types say `window`)
   - `ShareMenu` constructor takes `SharingItem { filePaths?: string[], texts?: string[], urls?: string[] }`
   - For cross-platform share fallback, `dialog.showSaveDialog` + `fs.copyFileSync` provides a "Save As" experience
+---
+
+## 2026-02-06 - US-018
+- Configured SQLite database in Nuxt server using better-sqlite3
+- Created `server/utils/db.ts` with `initDb()` and `getDb()` exports
+- Created `server/plugins/db.ts` Nitro plugin to initialize database on server startup
+- Photos table schema: id (TEXT PRIMARY KEY), filename (TEXT NOT NULL), original_name (TEXT NOT NULL), uploaded_at (TEXT NOT NULL), file_size (INTEGER NOT NULL), download_count (INTEGER NOT NULL DEFAULT 0)
+- Database file stored at `./data/fotobox.db`, data directory auto-created via `mkdirSync({ recursive: true })`
+- WAL journal mode enabled for better concurrent performance
+- Added better-sqlite3 to root `pnpm.onlyBuiltDependencies` for native module compilation
+- Added data/ and uploads/ to apps/web/.gitignore
+- Files changed: package.json, pnpm-lock.yaml, apps/web/package.json, apps/web/.gitignore, apps/web/server/utils/db.ts (new), apps/web/server/plugins/db.ts (new)
+- **Learnings for future iterations:**
+  - `better-sqlite3` is a native module — needs `pnpm.onlyBuiltDependencies` allowlist in root package.json
+  - Nuxt server auto-imports `defineNitroPlugin` in server/plugins/ directory — no explicit import needed
+  - Nitro plugins run on server startup — ideal for database initialization
+  - `server/utils/` files are auto-imported in Nuxt server context — `getDb()` available everywhere in server code
+  - WAL mode (`db.pragma('journal_mode = WAL')`) is recommended for SQLite in server environments
 ---
