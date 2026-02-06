@@ -28,6 +28,8 @@
 - CameraPreview component exposes `videoRef` and `stream` via `defineExpose` for capture (US-012) and compositing (US-013)
 - Frame overlay: simple `<img>` with `absolute inset-0 pointer-events-none object-cover` over camera preview; `v-if` on framePath to hide when unconfigured
 - Prefer `settings:getAll` over multiple `settings:get` calls when loading multiple settings at once
+- CountdownOverlay component uses `<Teleport to="body">` with `:key` trick to retrigger CSS animations on each tick
+- App.vue `handleCountdownComplete()` is the hook point for triggering photo capture (US-012)
 
 ---
 
@@ -192,4 +194,21 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - Frame overlay is a simple `<img>` absolutely positioned over the camera preview — no component needed
   - `pointer-events-none` ensures the frame overlay doesn't intercept tap/click events for photo capture (US-011)
   - Consolidating multiple setting reads into `settings:getAll` is more efficient than multiple `settings:get` calls
+---
+
+## 2026-02-06 - US-011
+- Created `CountdownOverlay.vue` component with animated countdown display and white flash effect
+- Countdown starts when clicking anywhere on the photobooth screen; uses configured `countdownSeconds` from settings
+- Large centered number (180px, font-weight 800) with white text and drop shadow overlays camera feed via `<Teleport to="body">`
+- Each tick animates with CSS `@keyframes countdown-tick`: scales from 2x down to 1x, then fades to 0.3 opacity
+- Double-trigger prevented: `countdownActive` ref gates the click handler
+- White flash (`bg-white fixed inset-0`) plays for 300ms at countdown end before emitting `complete` event
+- Tap prompt hidden during countdown via `v-if="!countdownActive"`
+- `handleCountdownComplete()` in App.vue resets state and has TODO placeholder for US-012 photo capture
+- Files changed: apps/desktop/src/renderer/src/components/CountdownOverlay.vue (new), apps/desktop/src/renderer/src/App.vue
+- **Learnings for future iterations:**
+  - `<Teleport to="body">` with `fixed inset-0 z-50` ensures countdown overlay renders above all content including frame overlay
+  - CSS keyframe `animation` re-triggers on each tick via a `:key="animKey"` that increments — forces Vue to recreate the element
+  - `pointer-events-none` on the countdown overlay prevents it from stealing clicks from the photobooth screen
+  - Countdown component uses `watch(active)` to start/stop rather than lifecycle hooks, allowing parent to control via prop
 ---
