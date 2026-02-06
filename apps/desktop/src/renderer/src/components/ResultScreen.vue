@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
+import QRCode from 'qrcode'
 
 interface UploadResult {
   id: string
@@ -16,6 +17,27 @@ const props = defineProps<{
   uploadResult: UploadResult | null
   serverUrl: string
 }>()
+
+const qrCodeDataUrl = ref<string | null>(null)
+
+async function generateQrCode(downloadUrl: string): Promise<void> {
+  const fullUrl = props.serverUrl.replace(/\/$/, '') + downloadUrl
+  qrCodeDataUrl.value = await QRCode.toDataURL(fullUrl, {
+    width: 150,
+    margin: 1,
+    color: { dark: '#000000', light: '#ffffff' }
+  })
+}
+
+watch(
+  () => props.uploadResult,
+  (result) => {
+    if (result) {
+      generateQrCode(result.downloadUrl)
+    }
+  },
+  { immediate: true }
+)
 
 const emit = defineEmits<{
   newPhoto: []
@@ -125,13 +147,19 @@ watch(
         </button>
       </div>
 
-      <!-- QR code placeholder (populated by US-023) -->
+      <!-- QR code -->
       <div
-        class="flex h-[150px] w-[150px] flex-shrink-0 items-center justify-center rounded-lg bg-white/10 text-sm text-white/50"
+        class="flex h-[150px] w-[150px] flex-shrink-0 items-center justify-center rounded-lg text-sm text-white/50"
+        :class="qrCodeDataUrl ? 'bg-white' : 'bg-white/10'"
       >
-        <span v-if="uploadStatus === 'uploading'">Uploading...</span>
+        <img
+          v-if="uploadStatus === 'success' && qrCodeDataUrl"
+          :src="qrCodeDataUrl"
+          alt="QR Code"
+          class="h-full w-full rounded-lg"
+        />
+        <span v-else-if="uploadStatus === 'uploading'">Uploading...</span>
         <span v-else-if="uploadStatus === 'failed' || uploadStatus === 'idle'">Offline</span>
-        <span v-else>QR Code</span>
       </div>
     </div>
 

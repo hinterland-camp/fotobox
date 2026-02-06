@@ -51,6 +51,12 @@
 - Nuxt 4 pages live in `app/pages/` — `app.vue` needs `<NuxtPage />` to enable file-based routing
 - Nuxt `useSeoMeta()` composable sets Open Graph meta tags (ogTitle, ogImage, ogDescription, ogType)
 - Branding config: `branding.json` at Nuxt project root, served via `GET /api/branding` endpoint with fallback defaults
+- Upload IPC: `photos:upload` in main process reads saved file, sends as FormData via `net.fetch` to server's `POST /api/photos`
+- Upload runs silently in background (no await in photo flow) — result stored in `uploadResult` ref for QR code (US-023)
+- Upload status tracked via `uploadStatus` ref: 'idle' | 'uploading' | 'success' | 'failed'
+- Failed uploads pushed to in-memory `uploadRetryQueue` array (persisted queue in US-024)
+- ResultScreen receives `uploadStatus`, `uploadResult`, `serverUrl` props — shows "Uploading...", "Offline", or QR code image
+- QR code: `qrcode` package generates data URL via `QRCode.toDataURL(url, { width, margin, color })` — rendered as `<img>` in ResultScreen
 
 ---
 
@@ -402,4 +408,41 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - `useFetch` with `await` in `<script setup>` enables SSR data fetching — the page renders on server with data
   - Branding loaded from a JSON file via server API endpoint allows runtime customization without rebuilding
   - `useFetch` error object has `.statusCode` property to distinguish 404 from other errors
+---
+
+## 2026-02-06 - US-022
+- Implemented photo upload to Nuxt server from Electron app after local save
+- Added `photos:upload` IPC handler in main process using Electron's `net.fetch` with FormData
+- Handler reads the saved file from disk, constructs FormData with `image` field, POSTs to `{serverUrl}/api/photos`
+- Returns `{ id, downloadUrl }` on success or `null` on failure
+- Added `upload(filePath)` method to preload photos API with type declarations
+- Upload runs silently in background after local save — `uploadPhoto()` called without `await`
+- Upload result stored in `uploadResult` ref, status tracked via `uploadStatus` ref
+- Failed uploads (network error or server error) pushed to in-memory `uploadRetryQueue` array
+- ResultScreen updated with new props: `uploadStatus`, `uploadResult`, `serverUrl`
+- QR code placeholder now shows context-aware text: "Uploading...", "Offline", or "QR Code"
+- Files changed: apps/desktop/src/main/index.ts, apps/desktop/src/preload/index.ts, apps/desktop/src/preload/index.d.ts, apps/desktop/src/renderer/src/App.vue, apps/desktop/src/renderer/src/components/ResultScreen.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - Electron `net.fetch` supports `FormData` natively in the main process — no need for external HTTP libraries
+  - `new Blob([buffer], { type })` works in Electron main process for constructing FormData file fields
+  - `formData.append('image', blob, filename)` sets the filename in the multipart form data
+  - Upload must happen in main process (not renderer) to access saved files on disk via `readFileSync`
+  - Non-blocking upload: call the async function without `await` to keep the UI flow responsive
+  - `uploadRetryQueue` is in-memory only for US-022 — US-024 extends this with persistence and background retry
+---
+
+## 2026-02-06 - US-023
+- Implemented QR code generation on result screen using the `qrcode` npm package
+- Added `qrcode` and `@types/qrcode` as devDependencies to apps/desktop
+- `QRCode.toDataURL()` generates a data URL from the full download URL (serverUrl + downloadUrl)
+- QR code displayed as a 150x150px `<img>` in the bottom-right area of the result screen
+- Watcher on `uploadResult` prop triggers QR generation when upload succeeds (with `immediate: true`)
+- Upload states: "Uploading..." while pending, "Offline" when failed/idle, QR code image when success
+- QR code container gets white background when QR is rendered, translucent when showing text
+- Files changed: apps/desktop/package.json, apps/desktop/src/renderer/src/components/ResultScreen.vue, pnpm-lock.yaml, loops/prd.json
+- **Learnings for future iterations:**
+  - `qrcode` package's `toDataURL(text, options)` returns a Promise<string> with a PNG data URL — perfect for `<img src>`
+  - QR code `width` option controls the pixel dimensions, `margin` controls quiet zone (1 module = tight fit)
+  - `immediate: true` on watch ensures QR generation runs if uploadResult is already populated when component mounts
+  - Full download URL = `serverUrl.replace(/\/$/, '') + downloadUrl` — strip trailing slash to avoid double-slash
 ---
