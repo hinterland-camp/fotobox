@@ -1,10 +1,20 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 
+interface UploadResult {
+  id: string
+  downloadUrl: string
+}
+
+type UploadStatus = 'idle' | 'uploading' | 'success' | 'failed'
+
 const props = defineProps<{
   photoDataUrl: string
   autoReturnSeconds: number
   printerConfigured: boolean
+  uploadStatus: UploadStatus
+  uploadResult: UploadResult | null
+  serverUrl: string
 }>()
 
 const emit = defineEmits<{
@@ -115,11 +125,13 @@ watch(
         </button>
       </div>
 
-      <!-- QR code placeholder -->
+      <!-- QR code placeholder (populated by US-023) -->
       <div
         class="flex h-[150px] w-[150px] flex-shrink-0 items-center justify-center rounded-lg bg-white/10 text-sm text-white/50"
       >
-        QR Code
+        <span v-if="uploadStatus === 'uploading'">Uploading...</span>
+        <span v-else-if="uploadStatus === 'failed' || uploadStatus === 'idle'">Offline</span>
+        <span v-else>QR Code</span>
       </div>
     </div>
 

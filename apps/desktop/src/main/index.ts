@@ -1,6 +1,6 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, ShareMenu, shell } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, net, ShareMenu, shell } from 'electron'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { basename, join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 
 let allowQuit = false
@@ -245,6 +245,37 @@ app.whenReady().then(() => {
     copyFileSync(filePath, result.filePath)
     return true
   })
+
+  // --- Upload IPC handler ---
+
+  ipcMain.handle(
+    'photos:upload',
+    async (_event, filePath: string): Promise<{ id: string; downloadUrl: string } | null> => {
+      const settings = loadSettings()
+      const serverUrl = settings.serverUrl
+      if (!serverUrl) return null
+
+      if (!existsSync(filePath)) return null
+
+      const fileData = readFileSync(filePath)
+      const filename = basename(filePath)
+      const mimeType = filename.endsWith('.png') ? 'image/png' : 'image/jpeg'
+
+      const formData = new FormData()
+      formData.append('image', new Blob([fileData], { type: mimeType }), filename)
+
+      const url = `${serverUrl.replace(/\/$/, '')}/api/photos`
+      const response = await net.fetch(url, {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) return null
+
+      const result = (await response.json()) as { id: string; downloadUrl: string }
+      return result
+    }
+  )
 
   // --- Printers IPC handler ---
 

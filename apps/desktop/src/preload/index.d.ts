@@ -12,10 +12,16 @@ interface SettingsAPI {
   set(key: string, value: unknown): Promise<void>
 }
 
+interface UploadResult {
+  id: string
+  downloadUrl: string
+}
+
 interface PhotosAPI {
   save(buffer: ArrayBuffer): Promise<string>
   print(filePath: string): Promise<boolean>
   share(filePath: string): Promise<boolean>
+  upload(filePath: string): Promise<UploadResult | null>
 }
 
 interface PrinterInfo {

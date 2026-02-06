@@ -31,6 +31,7 @@ async function loadPhotoboothSettings(): Promise<void> {
   countdownSeconds.value = (settings.countdownSeconds as number) || 3
   autoReturnSeconds.value = (settings.autoReturnSeconds as number) || 30
   printerName.value = (settings.printerName as string) || ''
+  serverUrl.value = (settings.serverUrl as string) || ''
 }
 
 function handlePhotoboothClick(): void {
@@ -89,14 +90,48 @@ async function compositePhoto(photoDataUrl: string): Promise<CompositedPhoto> {
   return { dataUrl, blob }
 }
 
+interface UploadResult {
+  id: string
+  downloadUrl: string
+}
+
+type UploadStatus = 'idle' | 'uploading' | 'success' | 'failed'
+
 const compositedPhoto = ref<CompositedPhoto | null>(null)
 const savedPhotoPath = ref<string | null>(null)
+const uploadResult = ref<UploadResult | null>(null)
+const uploadStatus = ref<UploadStatus>('idle')
+const serverUrl = ref('')
 const printToast = ref<string | null>(null)
 let printToastTimer: ReturnType<typeof setTimeout> | null = null
 
 async function savePhoto(blob: Blob): Promise<string> {
   const buffer = await blob.arrayBuffer()
   return window.api.photos.save(buffer)
+}
+
+const uploadRetryQueue: string[] = []
+
+async function uploadPhoto(filePath: string): Promise<void> {
+  if (!serverUrl.value) {
+    uploadStatus.value = 'idle'
+    return
+  }
+
+  uploadStatus.value = 'uploading'
+  try {
+    const result = await window.api.photos.upload(filePath)
+    if (result) {
+      uploadResult.value = result
+      uploadStatus.value = 'success'
+    } else {
+      uploadRetryQueue.push(filePath)
+      uploadStatus.value = 'failed'
+    }
+  } catch {
+    uploadRetryQueue.push(filePath)
+    uploadStatus.value = 'failed'
+  }
 }
 
 async function handleCountdownComplete(): Promise<void> {
@@ -109,6 +144,9 @@ async function handleCountdownComplete(): Promise<void> {
     // Save locally immediately after compositing
     const filePath = await savePhoto(result.blob)
     savedPhotoPath.value = filePath
+
+    // Upload silently in the background (no await — non-blocking)
+    uploadPhoto(filePath)
 
     // Transition to result screen
     currentScreen.value = 'result'
@@ -167,6 +205,8 @@ function handleNewPhoto(): void {
   capturedPhotoDataUrl.value = null
   compositedPhoto.value = null
   savedPhotoPath.value = null
+  uploadResult.value = null
+  uploadStatus.value = 'idle'
   currentScreen.value = 'photobooth'
 }
 
@@ -217,6 +257,9 @@ async function returnToPhotobooth(): Promise<void> {
     :photo-data-url="compositedPhoto.dataUrl"
     :auto-return-seconds="autoReturnSeconds"
     :printer-configured="!!printerName"
+    :upload-status="uploadStatus"
+    :upload-result="uploadResult"
+    :server-url="serverUrl"
     @new-photo="handleNewPhoto"
     @print="handlePrint"
     @share="handleShare"
