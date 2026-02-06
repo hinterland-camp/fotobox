@@ -35,6 +35,7 @@
 - Frame loaded via `file://` protocol in Electron renderer for canvas compositing (same as preview overlay)
 - `compositedPhoto` ref in App.vue is the handoff for US-014 (save) and US-015 (result screen)
 - Photos IPC: `photos:save` accepts ArrayBuffer, writes PNG to save dir, returns file path — `savedPhotoPath` ref stores result
+- Print IPC: `photos:print` creates hidden BrowserWindow with photo HTML, uses `webContents.print({ silent: true, deviceName })`, closes window after
 - ResultScreen component: receives `photoDataUrl` (composited), `autoReturnSeconds`, `printerConfigured` props; emits `newPhoto`, `print`, `share`
 - App.vue screen flow: `'photobooth'` → countdown → capture → composite → save → `'result'` → `handleNewPhoto()` back to `'photobooth'`
 
@@ -284,4 +285,21 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - Auto-return timer uses `setInterval` with cleanup in `onUnmounted`; interaction resets remaining seconds
   - `@click.stop` on buttons prevents bubbling to the interaction handler on the container
   - Print/Share button handlers are wired as no-op arrow functions in App.vue template — replace with real handlers in US-016/US-017
+---
+
+## 2026-02-06 - US-016
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Implemented silent printing to configured printer via Electron IPC
+- Added `photos:print` IPC handler in main process that creates a hidden BrowserWindow, loads the photo as HTML, and prints with `webContents.print({ silent: true, deviceName })`
+- Added `print()` method to preload photos API and type declarations
+- Wired `handlePrint()` in App.vue — calls `photos:print` with the saved file path
+- Added toast notification (red, 3-second auto-dismiss) shown when printing fails
+- Print button remains hidden when no printer is configured (existing behavior from US-015)
+- Files changed: apps/desktop/src/main/index.ts, apps/desktop/src/preload/index.ts, apps/desktop/src/preload/index.d.ts, apps/desktop/src/renderer/src/App.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - `webContents.print()` prints the current page, so for printing a single photo use a hidden BrowserWindow with an HTML page containing just the photo
+  - `webContents.print({ silent: true, deviceName })` skips the print dialog and sends directly to the named printer
+  - `webContents.print()` callback signature is `(success, failureReason)` — failureReason is a string
+  - Hidden print window needs `await webContents.executeJavaScript(...)` to wait for image load before printing
+  - `<Teleport to="body">` with `fixed z-50` for toast notifications ensures they render above all app content
 ---

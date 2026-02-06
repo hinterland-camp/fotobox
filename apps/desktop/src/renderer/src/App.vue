@@ -91,6 +91,8 @@ async function compositePhoto(photoDataUrl: string): Promise<CompositedPhoto> {
 
 const compositedPhoto = ref<CompositedPhoto | null>(null)
 const savedPhotoPath = ref<string | null>(null)
+const printToast = ref<string | null>(null)
+let printToastTimer: ReturnType<typeof setTimeout> | null = null
 
 async function savePhoto(blob: Blob): Promise<string> {
   const buffer = await blob.arrayBuffer()
@@ -114,6 +116,22 @@ async function handleCountdownComplete(): Promise<void> {
   countdownActive.value = false
 }
 
+function showPrintToast(message: string): void {
+  printToast.value = message
+  if (printToastTimer) clearTimeout(printToastTimer)
+  printToastTimer = setTimeout(() => {
+    printToast.value = null
+  }, 3000)
+}
+
+async function handlePrint(): Promise<void> {
+  if (!savedPhotoPath.value) return
+  const success = await window.api.photos.print(savedPhotoPath.value)
+  if (!success) {
+    showPrintToast('Printing failed. Please check your printer.')
+  }
+}
+
 function handleKeydown(e: KeyboardEvent): void {
   if (e.key === 'Escape' && currentScreen.value === 'photobooth' && !showPasswordDialog.value) {
     showPasswordDialog.value = true
@@ -127,6 +145,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+  if (printToastTimer) clearTimeout(printToastTimer)
 })
 
 function handlePasswordCancel(): void {
@@ -194,7 +213,7 @@ async function returnToPhotobooth(): Promise<void> {
     :auto-return-seconds="autoReturnSeconds"
     :printer-configured="!!printerName"
     @new-photo="handleNewPhoto"
-    @print="() => {}"
+    @print="handlePrint"
     @share="() => {}"
   />
 
@@ -210,4 +229,14 @@ async function returnToPhotobooth(): Promise<void> {
     @cancel="handlePasswordCancel"
     @success="handlePasswordSuccess"
   />
+
+  <!-- Print toast notification -->
+  <Teleport to="body">
+    <div
+      v-if="printToast"
+      class="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-red-600 px-6 py-3 text-white shadow-lg"
+    >
+      {{ printToast }}
+    </div>
+  </Teleport>
 </template>

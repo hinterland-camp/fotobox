@@ -14,6 +14,7 @@ interface SettingsAPI {
 
 interface PhotosAPI {
   save(buffer: ArrayBuffer): Promise<string>
+  print(filePath: string): Promise<boolean>
 }
 
 interface PrinterInfo {

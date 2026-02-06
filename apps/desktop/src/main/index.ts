@@ -172,6 +172,55 @@ app.whenReady().then(() => {
     return filePath
   })
 
+  // --- Print IPC handler ---
+
+  ipcMain.handle('photos:print', async (_event, filePath: string): Promise<boolean> => {
+    const settings = loadSettings()
+    const printerName = settings.printerName
+    if (!printerName) return false
+
+    // Create a hidden window to render and print the photo
+    const printWindow = new BrowserWindow({
+      show: false,
+      width: 800,
+      height: 600,
+      webPreferences: { sandbox: true }
+    })
+
+    const html = `<!DOCTYPE html>
+<html><head><style>
+  * { margin: 0; padding: 0; }
+  body { display: flex; align-items: center; justify-content: center; }
+  img { max-width: 100%; max-height: 100vh; }
+  @media print { @page { margin: 0; } body { margin: 0; } img { max-width: 100%; max-height: 100%; } }
+</style></head><body>
+<img src="file://${filePath.replace(/\\/g, '/')}" />
+</body></html>`
+
+    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+
+    // Wait for the image to load
+    await printWindow.webContents.executeJavaScript(`
+      new Promise((resolve) => {
+        const img = document.querySelector('img');
+        if (img.complete) resolve(); else img.onload = resolve;
+      })
+    `)
+
+    return new Promise<boolean>((resolve) => {
+      printWindow.webContents.print(
+        { silent: true, deviceName: printerName },
+        (success, failureReason) => {
+          printWindow.close()
+          if (!success) {
+            console.error('Print failed:', failureReason)
+          }
+          resolve(success)
+        }
+      )
+    })
+  })
+
   // --- Printers IPC handler ---
 
   ipcMain.handle('printers:getAll', async () => {
