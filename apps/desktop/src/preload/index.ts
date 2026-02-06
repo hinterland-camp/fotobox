@@ -7,6 +7,12 @@ const api = {
       ipcRenderer.invoke('kiosk:validatePassword', password),
     exitToSettings: (): Promise<void> => ipcRenderer.invoke('kiosk:exitToSettings'),
     enterKiosk: (): Promise<void> => ipcRenderer.invoke('kiosk:enterKiosk')
+  },
+  settings: {
+    getAll: (): Promise<Record<string, unknown>> => ipcRenderer.invoke('settings:getAll'),
+    get: (key: string): Promise<unknown> => ipcRenderer.invoke('settings:get', key),
+    set: (key: string, value: unknown): Promise<void> =>
+      ipcRenderer.invoke('settings:set', key, value)
   }
 }
 

@@ -20,6 +20,8 @@
 - IPC pattern: `ipcMain.handle('namespace:method')` in main, `ipcRenderer.invoke()` in preload, typed `window.api` in renderer
 - Preload API types declared in `src/preload/index.d.ts` and exposed via `contextBridge.exposeInMainWorld('api', api)`
 - Kiosk exit/enter: `win.setKiosk(false); win.setFullScreen(false); win.setAlwaysOnTop(false)` to exit; reverse to re-enter
+- Settings IPC: `settings:getAll` returns full Settings object, `settings:get(key)` returns single value, `settings:set(key, value)` updates and persists
+- Settings defaults: password='admin', countdownSeconds=3, savePath=~/Pictures/Fotobox/, autoReturnSeconds=30, empty strings for device/path/url fields
 
 ---
 
@@ -117,4 +119,18 @@
   - `win.setKiosk(false)` alone doesn't exit fullscreen on macOS — also need `win.setFullScreen(false)` and `win.setAlwaysOnTop(false)`
   - Vue `<Teleport to="body">` useful for dialog overlays that need to escape parent z-index contexts
   - TypeScript strict mode catches unused functions — remove or use `saveSettings` only when actually needed
+---
+
+## 2026-02-06 - US-007
+- Expanded Settings interface with full schema: password, cameraDeviceId, framePath, printerName, serverUrl, countdownSeconds, savePath, autoReturnSeconds
+- Added `saveSettings()` function to persist settings to disk
+- Added IPC handlers: `settings:getAll`, `settings:get`, `settings:set`
+- Updated preload to expose `window.api.settings` with getAll/get/set methods
+- Updated preload type declarations with SettingsAPI interface
+- Settings file created with defaults on first launch; existing settings merged with defaults on load (forward-compatible)
+- Files changed: apps/desktop/src/main/index.ts, apps/desktop/src/preload/index.ts, apps/desktop/src/preload/index.d.ts, loops/prd.json
+- **Learnings for future iterations:**
+  - TypeScript `as Record<string, T>` cast on interface fails strict checking — use `as unknown as Record<string, T>` for dynamic key assignment
+  - `loadSettings()` merges saved JSON with `defaultSettings` spread, so adding new fields to defaults is forward-compatible with existing settings files
+  - `app.getPath('home')` gives home dir for constructing default save paths like `~/Pictures/Fotobox/`
 ---

@@ -13,10 +13,24 @@ export function setAllowQuit(value: boolean): void {
 
 interface Settings {
   password: string
+  cameraDeviceId: string
+  framePath: string
+  printerName: string
+  serverUrl: string
+  countdownSeconds: number
+  savePath: string
+  autoReturnSeconds: number
 }
 
 const defaultSettings: Settings = {
-  password: 'admin'
+  password: 'admin',
+  cameraDeviceId: '',
+  framePath: '',
+  printerName: '',
+  serverUrl: '',
+  countdownSeconds: 3,
+  savePath: join(app.getPath('home'), 'Pictures', 'Fotobox'),
+  autoReturnSeconds: 30
 }
 
 function getSettingsPath(): string {
@@ -27,7 +41,6 @@ function getSettingsPath(): string {
 function loadSettings(): Settings {
   const settingsPath = getSettingsPath()
   if (!existsSync(settingsPath)) {
-    // Ensure userData directory exists
     const dir = app.getPath('userData')
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true })
@@ -37,6 +50,11 @@ function loadSettings(): Settings {
   }
   const raw = readFileSync(settingsPath, 'utf-8')
   return { ...defaultSettings, ...JSON.parse(raw) }
+}
+
+function saveSettings(settings: Settings): void {
+  const settingsPath = getSettingsPath()
+  writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
 }
 
 function createWindow(): void {
@@ -115,6 +133,23 @@ app.whenReady().then(() => {
       win.setFullScreen(true)
       win.setKiosk(true)
     }
+  })
+
+  // --- Settings IPC handlers ---
+
+  ipcMain.handle('settings:getAll', (): Settings => {
+    return loadSettings()
+  })
+
+  ipcMain.handle('settings:get', (_event, key: keyof Settings): Settings[keyof Settings] => {
+    const settings = loadSettings()
+    return settings[key]
+  })
+
+  ipcMain.handle('settings:set', (_event, key: keyof Settings, value: Settings[keyof Settings]) => {
+    const settings = loadSettings()
+    ;(settings as unknown as Record<string, Settings[keyof Settings]>)[key] = value
+    saveSettings(settings)
   })
 
   createWindow()

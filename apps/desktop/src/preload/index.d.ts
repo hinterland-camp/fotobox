@@ -6,8 +6,15 @@ interface KioskAPI {
   enterKiosk(): Promise<void>
 }
 
+interface SettingsAPI {
+  getAll(): Promise<Record<string, unknown>>
+  get(key: string): Promise<unknown>
+  set(key: string, value: unknown): Promise<void>
+}
+
 interface FotoboxAPI {
   kiosk: KioskAPI
+  settings: SettingsAPI
 }
 
 declare global {
