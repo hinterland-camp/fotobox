@@ -45,8 +45,9 @@
 - Database stored at `./data/fotobox.db` (relative to Nuxt cwd), data/ and uploads/ directories gitignored
 - WAL mode enabled on SQLite for better concurrent read/write performance
 - Nuxt auto-imports `defineNitroPlugin` in server/plugins/ — no explicit import needed
-- Nuxt API routes: `server/api/photos.post.ts` → `POST /api/photos`; `server/api/photos/[id].get.ts` → `GET /api/photos/:id`
+- Nuxt API routes: `server/api/photos.post.ts` → `POST /api/photos`; `server/api/photos/[id].get.ts` → `GET /api/photos/:id`; `server/api/photos/[id]/download.get.ts` → `GET /api/photos/:id/download`
 - Nuxt `readMultipartFormData(event)` returns `MultiPartData[]` with `name`, `data` (Buffer), `type` (MIME), `filename`
+- Use `getRouterParam(event, 'id')` for dynamic route params and `sendStream(event, createReadStream(...))` for file downloads
 
 ---
 
@@ -360,4 +361,19 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - Nuxt auto-imports `readMultipartFormData`, `createError`, and `defineEventHandler` in server API routes
   - File naming convention: `photos.post.ts` creates a `POST /api/photos` route (method suffix in filename)
   - `uploads/` directory is already gitignored in apps/web/.gitignore
+---
+
+## 2026-02-06 - US-020
+- Implemented GET /api/photos/:id endpoint returning photo metadata JSON with camelCase field names
+- Implemented GET /api/photos/:id/download endpoint serving image files with correct Content-Type and Content-Disposition: attachment headers
+- Download endpoint increments download_count in the database on each request
+- Both endpoints return 404 with JSON error when photo ID doesn't exist
+- Files changed: apps/web/server/api/photos/[id].get.ts (new), apps/web/server/api/photos/[id]/download.get.ts (new), loops/prd.json
+- **Learnings for future iterations:**
+  - Nuxt dynamic route params: `[id].get.ts` in `photos/` directory creates `GET /api/photos/:id`; nested `[id]/download.get.ts` creates `GET /api/photos/:id/download`
+  - `getRouterParam(event, 'id')` extracts dynamic route params in Nitro event handlers
+  - `sendStream(event, createReadStream(filePath))` streams files efficiently for download endpoints
+  - `setResponseHeaders(event, { ... })` sets multiple response headers at once
+  - Nuxt `server/api/photos.post.ts` and `server/api/photos/[id].get.ts` coexist — flat file for POST, directory for parameterized GET
+  - DB columns use snake_case but API responses should use camelCase (matching the shared `Photo` type)
 ---
