@@ -1,4 +1,5 @@
-import { app, BrowserWindow, globalShortcut, shell } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 
@@ -6,6 +7,36 @@ let allowQuit = false
 
 export function setAllowQuit(value: boolean): void {
   allowQuit = value
+}
+
+// --- Settings ---
+
+interface Settings {
+  password: string
+}
+
+const defaultSettings: Settings = {
+  password: 'admin'
+}
+
+function getSettingsPath(): string {
+  const userDataPath = app.getPath('userData')
+  return join(userDataPath, 'settings.json')
+}
+
+function loadSettings(): Settings {
+  const settingsPath = getSettingsPath()
+  if (!existsSync(settingsPath)) {
+    // Ensure userData directory exists
+    const dir = app.getPath('userData')
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true })
+    }
+    writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2), 'utf-8')
+    return { ...defaultSettings }
+  }
+  const raw = readFileSync(settingsPath, 'utf-8')
+  return { ...defaultSettings, ...JSON.parse(raw) }
 }
 
 function createWindow(): void {
@@ -60,6 +91,31 @@ app.whenReady().then(() => {
       // Intentionally empty — block the shortcut
     })
   }
+
+  // --- IPC handlers ---
+
+  ipcMain.handle('kiosk:validatePassword', (_event, password: string): boolean => {
+    const settings = loadSettings()
+    return password === settings.password
+  })
+
+  ipcMain.handle('kiosk:exitToSettings', () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) {
+      win.setKiosk(false)
+      win.setFullScreen(false)
+      win.setAlwaysOnTop(false)
+    }
+  })
+
+  ipcMain.handle('kiosk:enterKiosk', () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) {
+      win.setAlwaysOnTop(true)
+      win.setFullScreen(true)
+      win.setKiosk(true)
+    }
+  })
 
   createWindow()
 

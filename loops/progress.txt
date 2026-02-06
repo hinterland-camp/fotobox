@@ -16,6 +16,10 @@
 - Shared package uses `tsc` build with `exports` field pointing to `dist/index.js` and `dist/index.d.ts`
 - Kiosk mode: `globalShortcut.register` blocks Alt+F4/Cmd+Q/Cmd+W; `allowQuit` flag gates `before-quit` and window `close` events
 - Kiosk mode uses `setAllowQuit(true)` export from main/index.ts to allow programmatic exit (used by password-protected exit)
+- Settings stored in `app.getPath('userData')/settings.json` — `loadSettings()` creates default file on first access
+- IPC pattern: `ipcMain.handle('namespace:method')` in main, `ipcRenderer.invoke()` in preload, typed `window.api` in renderer
+- Preload API types declared in `src/preload/index.d.ts` and exposed via `contextBridge.exposeInMainWorld('api', api)`
+- Kiosk exit/enter: `win.setKiosk(false); win.setFullScreen(false); win.setAlwaysOnTop(false)` to exit; reverse to re-enter
 
 ---
 
@@ -95,4 +99,22 @@
   - Kiosk quit prevention needs both window `close` event and app `before-quit` event handlers
   - `optimizer.watchWindowShortcuts` from @electron-toolkit/utils is not needed when manually managing shortcuts for kiosk mode
   - Export an `allowQuit` flag from main process so future IPC handlers (password exit) can call `setAllowQuit(true); app.quit()`
+---
+
+## 2026-02-06 - US-006
+- Implemented password-protected exit from kiosk mode
+- Added settings management in main process: `loadSettings()` reads/creates `settings.json` in userData with default password 'admin'
+- Added IPC handlers: `kiosk:validatePassword`, `kiosk:exitToSettings`, `kiosk:enterKiosk`
+- Updated preload to expose typed `window.api.kiosk` methods via contextBridge
+- Created `PasswordDialog.vue` component with password input, submit/cancel, inline error for wrong password
+- Updated `App.vue` with photobooth/settings screen switching, Escape key opens password dialog
+- Correct password exits kiosk mode (removes fullscreen/alwaysOnTop) and shows settings placeholder
+- Settings placeholder has "Return to Photobooth" button that re-enters kiosk mode
+- Files changed: apps/desktop/src/main/index.ts, apps/desktop/src/preload/index.ts, apps/desktop/src/preload/index.d.ts, apps/desktop/src/renderer/src/App.vue, apps/desktop/src/renderer/src/components/PasswordDialog.vue, loops/prd.json
+- **Learnings for future iterations:**
+  - IPC handlers registered with `ipcMain.handle()` require `ipcRenderer.invoke()` (not `send`/`on`)
+  - Preload API types must be declared in `src/preload/index.d.ts` for renderer TypeScript to understand `window.api`
+  - `win.setKiosk(false)` alone doesn't exit fullscreen on macOS — also need `win.setFullScreen(false)` and `win.setAlwaysOnTop(false)`
+  - Vue `<Teleport to="body">` useful for dialog overlays that need to escape parent z-index contexts
+  - TypeScript strict mode catches unused functions — remove or use `saveSettings` only when actually needed
 ---

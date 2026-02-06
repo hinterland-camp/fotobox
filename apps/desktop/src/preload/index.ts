@@ -1,7 +1,14 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
-const api = {}
+const api = {
+  kiosk: {
+    validatePassword: (password: string): Promise<boolean> =>
+      ipcRenderer.invoke('kiosk:validatePassword', password),
+    exitToSettings: (): Promise<void> => ipcRenderer.invoke('kiosk:exitToSettings'),
+    enterKiosk: (): Promise<void> => ipcRenderer.invoke('kiosk:enterKiosk')
+  }
+}
 
 if (process.contextIsolated) {
   try {
