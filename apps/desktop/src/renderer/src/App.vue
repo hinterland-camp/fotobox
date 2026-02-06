@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import CameraPreview from './components/CameraPreview.vue'
 import PasswordDialog from './components/PasswordDialog.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 
@@ -7,6 +8,12 @@ type Screen = 'photobooth' | 'settings'
 
 const currentScreen = ref<Screen>('photobooth')
 const showPasswordDialog = ref(false)
+const cameraDeviceId = ref('')
+
+async function loadCameraSettings(): Promise<void> {
+  const id = await window.api.settings.get('cameraDeviceId')
+  cameraDeviceId.value = (id as string) || ''
+}
 
 function handleKeydown(e: KeyboardEvent): void {
   if (e.key === 'Escape' && currentScreen.value === 'photobooth' && !showPasswordDialog.value) {
@@ -16,6 +23,7 @@ function handleKeydown(e: KeyboardEvent): void {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
+  loadCameraSettings()
 })
 
 onUnmounted(() => {
@@ -34,23 +42,21 @@ async function handlePasswordSuccess(): Promise<void> {
 
 async function returnToPhotobooth(): Promise<void> {
   await window.api.kiosk.enterKiosk()
+  await loadCameraSettings()
   currentScreen.value = 'photobooth'
 }
 </script>
 
 <template>
   <!-- Photobooth Screen -->
-  <div v-if="currentScreen === 'photobooth'" class="flex h-screen w-screen flex-col items-center justify-center bg-black">
-    <!-- Camera preview area (placeholder) -->
-    <div class="flex aspect-video w-full max-w-4xl items-center justify-center bg-zinc-900">
-      <div class="text-center">
-        <div class="text-6xl text-zinc-600">&#x1f4f7;</div>
-        <p class="mt-4 text-xl text-zinc-500">Camera preview will appear here</p>
-      </div>
-    </div>
+  <div v-if="currentScreen === 'photobooth'" class="relative h-screen w-screen bg-black">
+    <!-- Live camera preview -->
+    <CameraPreview :camera-device-id="cameraDeviceId" />
 
     <!-- Tap prompt -->
-    <p class="mt-8 animate-pulse text-lg text-zinc-400">Tap anywhere to take a photo</p>
+    <p class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-pulse text-lg text-white drop-shadow-lg">
+      Tap anywhere to take a photo
+    </p>
   </div>
 
   <!-- Settings Screen -->
