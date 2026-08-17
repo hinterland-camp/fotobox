@@ -234,16 +234,20 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('photos:save', async (_event, buffer: ArrayBuffer): Promise<string> => {
     const settings = loadSettings()
-    const saveDir = settings.savePath || join(app.getPath('home'), 'Pictures', 'Fotobox')
+    const baseDir = settings.savePath || join(app.getPath('home'), 'Pictures', 'Fotobox')
 
+    const now = new Date()
+    const pad = (n: number): string => String(n).padStart(2, '0')
+    const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+    const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+
+    // One folder per event day, so a multi-day event stays sorted on disk
+    const saveDir = join(baseDir, date)
     if (!existsSync(saveDir)) {
       mkdirSync(saveDir, { recursive: true })
     }
 
-    const now = new Date()
-    const pad = (n: number): string => String(n).padStart(2, '0')
-    const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
-    const filename = `fotobox-${timestamp}.png`
+    const filename = `fotobox-${date}-${time}.png`
     const filePath = join(saveDir, filename)
 
     writeFileSync(filePath, Buffer.from(buffer))
