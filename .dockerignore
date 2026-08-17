@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.output
+**/.nuxt
+**/.turbo
+**/out
+**/release
+**/*.tsbuildinfo
+.git
+.github
+docs
+data
+uploads
+**/*.log
+.DS_Store
