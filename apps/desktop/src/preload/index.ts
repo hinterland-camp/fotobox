@@ -37,6 +37,9 @@ const api = {
   printers: {
     getAll: (): Promise<Array<{ name: string; displayName: string }>> =>
       ipcRenderer.invoke('printers:getAll')
+  },
+  camera: {
+    getAccessStatus: (): Promise<string> => ipcRenderer.invoke('camera:getAccessStatus')
   }
 }
 

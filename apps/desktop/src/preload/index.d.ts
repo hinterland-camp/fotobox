@@ -45,12 +45,17 @@ interface PrintersAPI {
   getAll(): Promise<PrinterInfo[]>
 }
 
+interface CameraAPI {
+  getAccessStatus(): Promise<string>
+}
+
 interface FotoboxAPI {
   kiosk: KioskAPI
   settings: SettingsAPI
   photos: PhotosAPI
   uploadQueue: UploadQueueAPI
   printers: PrintersAPI
+  camera: CameraAPI
 }
 
 declare global {

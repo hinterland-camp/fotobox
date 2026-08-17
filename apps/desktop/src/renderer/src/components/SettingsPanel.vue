@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import CameraPreview from './CameraPreview.vue'
 
 const emit = defineEmits<{
   returnToPhotobooth: []
@@ -129,70 +130,109 @@ async function onCountdownChange(e: Event): Promise<void> {
 </script>
 
 <template>
-  <div class="flex h-screen w-screen items-start justify-center overflow-y-auto bg-zinc-950 p-8">
-    <div class="w-full max-w-2xl">
-      <h1 class="mb-8 text-2xl font-bold text-white">Settings</h1>
+  <div
+    class="custom-scrollbar flex h-screen w-screen items-start justify-center overflow-y-auto bg-zinc-950 px-6 py-8"
+  >
+    <div class="w-full max-w-2xl pb-8">
+      <!-- Header with Done button -->
+      <div class="mb-8 flex items-center justify-between">
+        <h1 class="text-3xl font-bold tracking-tight text-white">Settings</h1>
+        <button
+          class="rounded-xl bg-white px-6 py-3.5 text-base font-semibold text-black transition-transform active:scale-[0.97]"
+          @click="emit('returnToPhotobooth')"
+        >
+          Done
+        </button>
+      </div>
 
-      <div v-if="loading" class="text-zinc-400">Loading settings...</div>
+      <!-- Loading state -->
+      <div v-if="loading" class="flex items-center justify-center py-20">
+        <div
+          class="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-400"
+        />
+        <span class="ml-3 text-zinc-500">Loading settings...</span>
+      </div>
 
-      <div v-else class="space-y-6">
-        <!-- Camera Selection -->
-        <div>
-          <label class="mb-2 block text-sm font-medium text-zinc-400" for="settings-camera">
+      <div v-else class="space-y-4">
+        <!-- Camera Section -->
+        <section class="rounded-2xl bg-zinc-900/60 p-6">
+          <h2
+            class="mb-4 text-xs font-semibold uppercase tracking-widest text-zinc-500"
+          >
             Camera
-          </label>
+          </h2>
           <select
             id="settings-camera"
-            class="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-white outline-none focus:border-blue-500"
+            class="h-14 w-full appearance-none rounded-xl border border-zinc-700/50 bg-zinc-800 px-4 text-base text-white outline-none transition-colors focus:border-blue-500"
             :value="cameraDeviceId"
             @change="onCameraChange"
           >
             <option value="">No camera selected</option>
-            <option v-for="cam in cameras" :key="cam.deviceId" :value="cam.deviceId">
+            <option
+              v-for="cam in cameras"
+              :key="cam.deviceId"
+              :value="cam.deviceId"
+            >
               {{ cam.label }}
             </option>
           </select>
-          <p v-if="cameras.length === 0" class="mt-1 text-sm text-zinc-500">
+          <p v-if="cameras.length === 0" class="mt-2 text-sm text-zinc-600">
             No cameras detected
           </p>
-        </div>
 
-        <!-- Frame Upload -->
-        <div>
-          <label class="mb-2 block text-sm font-medium text-zinc-400">Frame Overlay (PNG)</label>
-          <div class="flex items-center gap-3">
+          <!-- Live preview of the selected camera -->
+          <div
+            v-if="cameras.length > 0"
+            class="mt-4 h-56 overflow-hidden rounded-xl border border-zinc-800"
+          >
+            <CameraPreview :camera-device-id="cameraDeviceId" />
+          </div>
+        </section>
+
+        <!-- Frame Overlay Section -->
+        <section class="rounded-2xl bg-zinc-900/60 p-6">
+          <h2
+            class="mb-4 text-xs font-semibold uppercase tracking-widest text-zinc-500"
+          >
+            Frame Overlay
+          </h2>
+          <div class="flex gap-3">
             <button
-              class="rounded-lg bg-zinc-700 px-4 py-3 text-white transition hover:bg-zinc-600"
+              class="h-14 rounded-xl bg-zinc-700/60 px-6 text-base font-medium text-white transition-colors active:bg-zinc-600"
               @click="onFrameSelect"
             >
-              {{ framePath ? 'Change Frame' : 'Select Frame' }}
+              {{ framePath ? 'Change Frame' : 'Select PNG' }}
             </button>
             <button
               v-if="framePath"
-              class="rounded-lg bg-zinc-700 px-4 py-3 text-red-400 transition hover:bg-zinc-600"
+              class="h-14 rounded-xl bg-zinc-700/60 px-6 text-base font-medium text-red-400 transition-colors active:bg-zinc-600"
               @click="onClearFrame"
             >
               Remove
             </button>
           </div>
-          <p v-if="framePath" class="mt-2 truncate text-sm text-zinc-500">{{ framePath }}</p>
-          <div v-if="framePreviewUrl" class="mt-3">
+          <p v-if="framePath" class="mt-3 truncate text-sm text-zinc-600">
+            {{ framePath }}
+          </p>
+          <div v-if="framePreviewUrl" class="mt-4">
             <img
               :src="framePreviewUrl"
               alt="Frame preview"
-              class="max-h-48 rounded-lg border border-zinc-700"
+              class="max-h-48 rounded-xl border border-zinc-800"
             />
           </div>
-        </div>
+        </section>
 
-        <!-- Printer Selection -->
-        <div>
-          <label class="mb-2 block text-sm font-medium text-zinc-400" for="settings-printer">
+        <!-- Printer Section -->
+        <section class="rounded-2xl bg-zinc-900/60 p-6">
+          <h2
+            class="mb-4 text-xs font-semibold uppercase tracking-widest text-zinc-500"
+          >
             Printer
-          </label>
+          </h2>
           <select
             id="settings-printer"
-            class="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-white outline-none focus:border-blue-500"
+            class="h-14 w-full appearance-none rounded-xl border border-zinc-700/50 bg-zinc-800 px-4 text-base text-white outline-none transition-colors focus:border-blue-500"
             :value="printerName"
             @change="onPrinterChange"
           >
@@ -201,67 +241,76 @@ async function onCountdownChange(e: Event): Promise<void> {
               {{ p.displayName || p.name }}
             </option>
           </select>
-          <p v-if="printers.length === 0" class="mt-1 text-sm text-zinc-500">
+          <p v-if="printers.length === 0" class="mt-2 text-sm text-zinc-600">
             No printers detected
           </p>
-        </div>
+        </section>
 
-        <!-- Server URL -->
-        <div>
-          <label class="mb-2 block text-sm font-medium text-zinc-400" for="settings-server-url">
-            Server URL
-          </label>
+        <!-- Server Section -->
+        <section class="rounded-2xl bg-zinc-900/60 p-6">
+          <h2
+            class="mb-4 text-xs font-semibold uppercase tracking-widest text-zinc-500"
+          >
+            Server
+          </h2>
           <input
             id="settings-server-url"
             type="text"
-            class="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-white placeholder-zinc-500 outline-none focus:border-blue-500"
+            class="h-14 w-full rounded-xl border border-zinc-700/50 bg-zinc-800 px-4 text-base text-white placeholder-zinc-600 outline-none transition-colors focus:border-blue-500"
             placeholder="https://your-server.com"
             :value="serverUrl"
             @change="onServerUrlChange"
           />
-        </div>
+        </section>
 
-        <!-- Password -->
-        <div>
-          <label class="mb-2 block text-sm font-medium text-zinc-400" for="settings-password">
+        <!-- Security Section -->
+        <section class="rounded-2xl bg-zinc-900/60 p-6">
+          <h2
+            class="mb-4 text-xs font-semibold uppercase tracking-widest text-zinc-500"
+          >
+            Security
+          </h2>
+          <label
+            class="mb-2 block text-sm text-zinc-400"
+            for="settings-password"
+          >
             Kiosk Exit Password
           </label>
           <input
             id="settings-password"
             type="password"
-            class="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-white placeholder-zinc-500 outline-none focus:border-blue-500"
+            class="h-14 w-full rounded-xl border border-zinc-700/50 bg-zinc-800 px-4 text-base text-white placeholder-zinc-600 outline-none transition-colors focus:border-blue-500"
             placeholder="Enter new password"
             :value="password"
             @change="onPasswordChange"
           />
-        </div>
+        </section>
 
-        <!-- Countdown Duration -->
-        <div>
-          <label class="mb-2 block text-sm font-medium text-zinc-400" for="settings-countdown">
-            Countdown Duration (seconds)
-          </label>
-          <input
-            id="settings-countdown"
-            type="number"
-            min="1"
-            max="10"
-            class="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-white outline-none focus:border-blue-500"
-            :value="countdownSeconds"
-            @change="onCountdownChange"
-          />
-          <p class="mt-1 text-sm text-zinc-500">1–10 seconds</p>
-        </div>
-
-        <!-- Return to Photobooth -->
-        <div class="pt-4">
-          <button
-            class="w-full rounded-lg bg-blue-600 px-6 py-3 text-white transition hover:bg-blue-500"
-            @click="emit('returnToPhotobooth')"
+        <!-- Countdown Section -->
+        <section class="rounded-2xl bg-zinc-900/60 p-6">
+          <h2
+            class="mb-4 text-xs font-semibold uppercase tracking-widest text-zinc-500"
           >
-            Return to Photobooth
-          </button>
-        </div>
+            Countdown
+          </h2>
+          <div class="flex items-center gap-4">
+            <input
+              id="settings-countdown"
+              type="range"
+              min="1"
+              max="10"
+              class="h-2 flex-1"
+              :value="countdownSeconds"
+              @input="onCountdownChange"
+            />
+            <span class="w-12 text-center text-2xl font-bold text-white">
+              {{ countdownSeconds }}
+            </span>
+          </div>
+          <p class="mt-2 text-sm text-zinc-600">
+            Seconds before capture (1–10)
+          </p>
+        </section>
       </div>
     </div>
   </div>
