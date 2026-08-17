@@ -1,10 +1,9 @@
 {
   "logo": "",
-  "tagline": "Powered by Fotobox",
-  "links": [
-    {
-      "label": "Website",
-      "url": "https://example.com"
-    }
-  ]
+  "tagline": "Captured at hinterland.camp",
+  "links": [{ "label": "hinterland.camp", "url": "https://hinterland.camp" }],
+  "appCta": {
+    "headline": "Get the hinterland app",
+    "fallbackUrl": "https://hinterland.camp/app"
+  }
 }

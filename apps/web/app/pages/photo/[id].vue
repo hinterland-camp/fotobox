@@ -1,14 +1,8 @@
 <script setup lang="ts">
-import type { Photo } from '@fotobox/shared'
+import type { Branding, Photo } from '@fotobox/shared'
 
 const route = useRoute()
 const photoId = route.params.id as string
-
-interface Branding {
-  logo: string
-  tagline: string
-  links: { label: string; url: string }[]
-}
 
 const { data: photo, error: photoError } = await useFetch<Photo>(`/api/photos/${photoId}`)
 const { data: branding } = await useFetch<Branding>('/api/branding')
@@ -83,6 +77,46 @@ if (photo.value) {
         </svg>
         Download Photo
       </a>
+
+      <!-- App CTA -->
+      <div
+        v-if="branding?.appCta"
+        class="mt-6 rounded-2xl border border-gray-800 bg-gray-900 p-6 text-center"
+      >
+        <p class="text-lg font-semibold">{{ branding.appCta.headline }}</p>
+        <div
+          v-if="branding.appCta.appStoreUrl || branding.appCta.playStoreUrl"
+          class="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center"
+        >
+          <a
+            v-if="branding.appCta.appStoreUrl"
+            :href="branding.appCta.appStoreUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-gray-950 transition hover:bg-gray-200 active:scale-[0.98]"
+          >
+            App Store
+          </a>
+          <a
+            v-if="branding.appCta.playStoreUrl"
+            :href="branding.appCta.playStoreUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-gray-950 transition hover:bg-gray-200 active:scale-[0.98]"
+          >
+            Google Play
+          </a>
+        </div>
+        <a
+          v-else-if="branding.appCta.fallbackUrl"
+          :href="branding.appCta.fallbackUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="mt-4 flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-gray-950 transition hover:bg-gray-200 active:scale-[0.98]"
+        >
+          Get the app
+        </a>
+      </div>
 
       <!-- Branding section -->
       <div v-if="branding" class="mt-8 text-center">
