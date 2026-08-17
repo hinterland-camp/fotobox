@@ -40,3 +40,45 @@ jobs:
         run: pnpm --filter @fotobox/desktop release:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # electron-builder races itself uploading assets and sometimes creates a
+      # second release under the same tag, stranding the .blockmap there. That
+      # costs differential downloads, so fold any duplicate back in.
+      - name: Consolidate duplicate releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          mapfile -t ids < <(gh api "repos/$GITHUB_REPOSITORY/releases" \
+            --jq ".[] | select(.tag_name == \"$tag\") | .id")
+          if [ "${#ids[@]}" -le 1 ]; then
+            echo "Single release for $tag — nothing to consolidate."
+            exit 0
+          fi
+          # The release holding latest.yml is the one the updater reads
+          keep=""
+          for id in "${ids[@]}"; do
+            if gh api "repos/$GITHUB_REPOSITORY/releases/$id" \
+                 --jq '[.assets[].name]|join(",")' | grep -q 'latest.yml'; then
+              keep="$id"
+            fi
+          done
+          [ -n "$keep" ] || keep="${ids[0]}"
+          echo "Keeping release $keep for $tag"
+          mkdir -p dup-assets
+          for id in "${ids[@]}"; do
+            [ "$id" = "$keep" ] && continue
+            gh api "repos/$GITHUB_REPOSITORY/releases/$id" --jq '.assets[] | "\(.id) \(.name)"' |
+              while read -r asset_id name; do
+                gh api -H "Accept: application/octet-stream" \
+                  "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" > "dup-assets/$name"
+                echo "Recovered $name"
+              done
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+            echo "Deleted duplicate release $id"
+          done
+          if compgen -G "dup-assets/*" > /dev/null; then
+            gh release upload "$tag" dup-assets/* --clobber
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
