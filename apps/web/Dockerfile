@@ -11,8 +11,9 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
 
-# Manifests first so dependency installs stay cached across source edits
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+# Manifests first so dependency installs stay cached across source edits.
+# tsconfig.json comes along because packages/shared extends it.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/web/package.json apps/web/
 COPY apps/desktop/package.json apps/desktop/
