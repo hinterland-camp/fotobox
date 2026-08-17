@@ -58,17 +58,18 @@ if (photo.value) {
       </p>
 
       <!-- Photo -->
-      <div
-        class="mt-8 overflow-hidden rounded-xl bg-paper shadow-[0_10px_38px_-10px_rgba(82,69,60,0.25)]"
-      >
-        <img :src="photoUrl" alt="Your photo booth photo" class="w-full" loading="eager" />
-      </div>
+      <img
+        :src="photoUrl"
+        alt="Your photo booth photo"
+        class="mt-8 w-full rounded-xl shadow-[0_10px_38px_-10px_rgba(82,69,60,0.25)]"
+        loading="eager"
+      />
 
       <!-- Download -->
       <a
         :href="photoUrl"
         download
-        class="mt-6 flex w-full items-center justify-center gap-2.5 rounded-xl bg-ink px-6 py-4 text-base font-semibold text-white transition hover:bg-ink-muted active:scale-[0.99]"
+        class="mt-6 flex w-full items-center justify-center gap-2.5 rounded-full bg-ink px-6 py-4 text-base font-semibold text-white transition hover:bg-ink-muted active:scale-[0.99]"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -88,25 +89,26 @@ if (photo.value) {
         Download photo
       </a>
 
-      <!-- App call to action -->
-      <div
+      <!-- App call to action — an open section, not a card, so the buttons
+           are not boxes sitting inside another box -->
+      <section
         v-if="branding?.appCta"
-        class="mt-10 rounded-xl bg-teal-soft px-6 py-7 text-center"
+        class="mt-12 border-t border-line pt-9 text-center"
       >
-        <h2 class="text-2xl font-bold leading-tight tracking-tight text-teal-dark">
+        <h2 class="text-2xl font-bold leading-tight tracking-tight">
           {{ branding.appCta.headline }}
         </h2>
-        <p class="mx-auto mt-2 max-w-xs font-serif leading-snug text-teal-dark/75">
+        <p class="mx-auto mt-2 max-w-xs font-serif leading-snug text-ink-muted">
           Find secluded pitches and plan your next getaway.
         </p>
 
-        <div class="mt-5 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
+        <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <a
             v-if="branding.appCta.appStoreUrl"
             :href="branding.appCta.appStoreUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="rounded-xl bg-teal px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-teal-dark active:scale-[0.99]"
+            class="rounded-full bg-teal px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-teal-dark active:scale-[0.99] sm:px-8"
           >
             App Store
           </a>
@@ -115,7 +117,7 @@ if (photo.value) {
             :href="branding.appCta.playStoreUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="rounded-xl bg-teal px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-teal-dark active:scale-[0.99]"
+            class="rounded-full bg-teal px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-teal-dark active:scale-[0.99] sm:px-8"
           >
             Google Play
           </a>
@@ -128,12 +130,12 @@ if (photo.value) {
             :href="branding.appCta.fallbackUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="rounded-xl bg-teal px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-teal-dark active:scale-[0.99]"
+            class="rounded-full bg-teal px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-teal-dark active:scale-[0.99]"
           >
             Get the app
           </a>
         </div>
-      </div>
+      </section>
     </div>
   </div>
 </template>
