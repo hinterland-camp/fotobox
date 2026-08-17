@@ -11,12 +11,12 @@ const photoUrl = `/api/photos/${photoId}/download`
 
 if (photo.value) {
   useHead({
-    title: 'Your photo — hinterland',
+    title: 'Dein Foto — hinterland',
   })
 
   useSeoMeta({
-    ogTitle: 'Your photo — hinterland',
-    ogDescription: 'Download your photo from the hinterland photo booth',
+    ogTitle: 'Dein Foto — hinterland',
+    ogDescription: 'Lade dein Foto aus der hinterland Fotobox herunter',
     ogImage: photoUrl,
     ogType: 'website',
   })
@@ -32,10 +32,10 @@ if (photo.value) {
     <div class="max-w-sm text-center">
       <img src="/hinterland-logo.svg" alt="hinterland" class="mx-auto h-10 w-10" />
       <h1 class="mt-8 text-3xl font-bold leading-none tracking-tight">
-        Photo not found
+        Foto nicht gefunden
       </h1>
       <p class="mt-3 font-serif text-lg leading-snug text-ink-muted">
-        This photo may have been removed, or the link is incorrect.
+        Dieses Foto wurde vielleicht entfernt oder der Link stimmt nicht.
       </p>
     </div>
   </div>
@@ -49,18 +49,18 @@ if (photo.value) {
       <h1
         class="mt-7 text-balance text-center text-4xl font-bold leading-none tracking-tight"
       >
-        Your photo is ready
+        Dein Foto ist fertig
       </h1>
       <p
         class="mt-3 text-balance text-center font-serif text-lg leading-snug text-ink-muted"
       >
-        Freedom. Getaway. Close by.
+        Freiheit. Auszeit. Unweit.
       </p>
 
       <!-- Photo -->
       <img
         :src="photoUrl"
-        alt="Your photo booth photo"
+        alt="Dein Foto aus der Fotobox"
         class="mt-8 w-full rounded-xl shadow-[0_10px_38px_-10px_rgba(82,69,60,0.25)]"
         loading="eager"
       />
@@ -86,7 +86,7 @@ if (photo.value) {
           <polyline points="7 10 12 15 17 10" />
           <line x1="12" y1="15" x2="12" y2="3" />
         </svg>
-        Download photo
+        Foto herunterladen
       </a>
 
       <!-- App call to action — an open section, not a card, so the buttons
@@ -99,7 +99,7 @@ if (photo.value) {
           {{ branding.appCta.headline }}
         </h2>
         <p class="mx-auto mt-2 max-w-xs font-serif leading-snug text-ink-muted">
-          Find secluded pitches and plan your next getaway.
+          Finde Zelt- und Stellplätze in Alleinlage für deine nächste Auszeit.
         </p>
 
         <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
@@ -132,7 +132,7 @@ if (photo.value) {
             rel="noopener noreferrer"
             class="rounded-full bg-teal px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-teal-dark active:scale-[0.99]"
           >
-            Get the app
+            Zur App
           </a>
         </div>
       </section>
