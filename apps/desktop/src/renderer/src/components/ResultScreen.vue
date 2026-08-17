@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import QRCode from 'qrcode'
 
 interface UploadResult {
@@ -8,11 +8,14 @@ interface UploadResult {
 }
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'failed'
+type PrintState = 'idle' | 'printing' | 'printed' | 'failed'
 
 const props = defineProps<{
   photoDataUrl: string
   autoReturnSeconds: number
   printerConfigured: boolean
+  printState: PrintState
+  printCount: number
   uploadStatus: UploadStatus
   uploadResult: UploadResult | null
   serverUrl: string
@@ -23,11 +26,17 @@ const qrCodeDataUrl = ref<string | null>(null)
 async function generateQrCode(downloadUrl: string): Promise<void> {
   const fullUrl = props.serverUrl.replace(/\/$/, '') + downloadUrl
   qrCodeDataUrl.value = await QRCode.toDataURL(fullUrl, {
-    width: 200,
+    width: 400,
     margin: 1,
     color: { dark: '#000000', light: '#ffffff' }
   })
 }
+
+const printLabel = computed(() => {
+  if (props.printState === 'printing') return 'Printing...'
+  if (props.printState === 'printed') return 'Print another'
+  return 'Print'
+})
 
 watch(
   () => props.uploadResult,
@@ -104,6 +113,19 @@ watch(
     startAutoReturn()
   }
 )
+
+// Never walk away mid-print: hold the timer while the printer runs, then give
+// the guest the full window again to decide whether they want a second copy.
+watch(
+  () => props.printState,
+  (state) => {
+    if (state === 'printing') {
+      stopAutoReturn()
+    } else if (state === 'printed' || state === 'failed') {
+      startAutoReturn()
+    }
+  }
+)
 </script>
 
 <template>
@@ -122,60 +144,102 @@ watch(
 
     <!-- Bottom controls -->
     <div class="flex flex-col gap-3 px-6 pb-6">
-      <!-- QR code / upload status card -->
+      <!-- Take-it-home invitation: the QR is the point of this screen -->
       <div
-        v-if="uploadStatus !== 'idle'"
-        class="flex items-center rounded-2xl bg-white/[0.06] px-5 py-4 backdrop-blur-md"
+        v-if="uploadStatus === 'success' && qrCodeDataUrl"
+        class="flex items-center gap-6 rounded-3xl bg-white/[0.09] px-6 py-5 ring-1 ring-white/15 backdrop-blur-md"
       >
-        <div class="flex min-w-0 flex-1 flex-col">
-          <span class="text-sm font-semibold text-white/60">
-            <template v-if="uploadStatus === 'success'">Scan to get your photo</template>
-            <template v-else-if="uploadStatus === 'uploading'">Uploading your photo...</template>
-            <template v-else>Saved locally</template>
-          </span>
-          <span
-            v-if="uploadStatus === 'success'"
-            class="mt-0.5 text-xs text-white/30"
-          >
-            Point your phone camera at the QR code
-          </span>
-        </div>
-
-        <!-- QR code image -->
-        <div
-          v-if="uploadStatus === 'success' && qrCodeDataUrl"
-          class="ml-4 h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-white p-1"
-        >
-          <img :src="qrCodeDataUrl" alt="QR Code" class="h-full w-full" />
-        </div>
-
-        <!-- Loading spinner -->
-        <div
-          v-else-if="uploadStatus === 'uploading'"
-          class="ml-4 flex h-20 w-20 flex-shrink-0 items-center justify-center"
-        >
+        <!-- QR code with a soft pulsing halo -->
+        <div class="relative flex-shrink-0">
           <div
-            class="h-6 w-6 animate-spin rounded-full border-2 border-white/10 border-t-white/50"
+            class="animate-qr-halo absolute -inset-2 rounded-3xl bg-white/40 blur-md"
           />
+          <div class="relative rounded-2xl bg-white p-2.5 shadow-2xl">
+            <img
+              :src="qrCodeDataUrl"
+              alt="Scan to download your photo"
+              class="h-40 w-40"
+            />
+          </div>
         </div>
 
-        <!-- Offline icon -->
-        <div
-          v-else
-          class="ml-4 flex h-20 w-20 flex-shrink-0 items-center justify-center text-white/15"
+        <div class="min-w-0 flex-1">
+          <p class="text-3xl font-bold leading-tight tracking-tight text-white">
+            Take your photo home
+          </p>
+          <p class="mt-1.5 text-lg leading-snug text-white/70">
+            Scan the code with your phone camera to download it.
+          </p>
+
+          <div class="mt-3 flex items-center gap-2 text-sm font-medium text-white/45">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              class="h-5 w-5"
+            >
+              <path
+                d="M10.5 18.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z"
+              />
+              <path
+                fill-rule="evenodd"
+                d="M8.625.75A3.375 3.375 0 0 0 5.25 4.125v15.75A3.375 3.375 0 0 0 8.625 23.25h6.75a3.375 3.375 0 0 0 3.375-3.375V4.125A3.375 3.375 0 0 0 15.375.75h-6.75ZM7.5 4.125c0-.621.504-1.125 1.125-1.125h6.75c.621 0 1.125.504 1.125 1.125v15.75c0 .621-.504 1.125-1.125 1.125h-6.75A1.125 1.125 0 0 1 7.5 19.875V4.125Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            Just point your camera — no app needed
+          </div>
+        </div>
+
+        <!-- Nudge arrow pointing back at the code -->
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          class="animate-nudge-left h-8 w-8 flex-shrink-0 text-white/25"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            class="h-8 w-8"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM12.75 9a.75.75 0 0 0-1.5 0v2.25H9a.75.75 0 0 0 0 1.5h2.25V15a.75.75 0 0 0 1.5 0v-2.25H15a.75.75 0 0 0 0-1.5h-2.25V9Z"
-              clip-rule="evenodd"
-            />
-          </svg>
+          <path
+            fill-rule="evenodd"
+            d="M20.25 12a.75.75 0 0 1-.75.75H6.31l5.47 5.47a.75.75 0 1 1-1.06 1.06l-6.75-6.75a.75.75 0 0 1 0-1.06l6.75-6.75a.75.75 0 1 1 1.06 1.06L6.31 11.25H19.5a.75.75 0 0 1 .75.75Z"
+            clip-rule="evenodd"
+          />
+        </svg>
+      </div>
+
+      <!-- Upload still in flight -->
+      <div
+        v-else-if="uploadStatus === 'uploading'"
+        class="flex items-center gap-4 rounded-3xl bg-white/[0.06] px-6 py-5 backdrop-blur-md"
+      >
+        <div
+          class="h-6 w-6 flex-shrink-0 animate-spin rounded-full border-2 border-white/10 border-t-white/50"
+        />
+        <div>
+          <p class="text-xl font-semibold text-white/80">Getting your photo ready...</p>
+          <p class="text-sm text-white/40">A QR code to download it appears in a moment</p>
+        </div>
+      </div>
+
+      <!-- Offline / not uploaded -->
+      <div
+        v-else-if="uploadStatus === 'failed'"
+        class="flex items-center gap-4 rounded-3xl bg-white/[0.06] px-6 py-5 backdrop-blur-md"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          class="h-6 w-6 flex-shrink-0 text-white/25"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM12.75 9a.75.75 0 0 0-1.5 0v2.25H9a.75.75 0 0 0 0 1.5h2.25V15a.75.75 0 0 0 1.5 0v-2.25H15a.75.75 0 0 0 0-1.5h-2.25V9Z"
+            clip-rule="evenodd"
+          />
+        </svg>
+        <div>
+          <p class="text-xl font-semibold text-white/80">Saved locally</p>
+          <p class="text-sm text-white/40">Your photo will upload once the booth is back online</p>
         </div>
       </div>
 
@@ -205,10 +269,24 @@ watch(
         <!-- Print (secondary, conditional) -->
         <button
           v-if="printerConfigured"
-          class="flex flex-1 items-center justify-center gap-2.5 rounded-2xl bg-white/10 py-5 text-base font-bold text-white backdrop-blur-md transition-transform active:scale-[0.97]"
+          class="relative flex flex-1 items-center justify-center gap-2.5 rounded-2xl bg-white/10 py-5 text-base font-bold text-white backdrop-blur-md transition-transform active:scale-[0.97] disabled:opacity-60"
+          :disabled="printState === 'printing'"
           @click.stop="handlePrint"
         >
+          <!-- Copies already printed -->
+          <span
+            v-if="printCount > 0"
+            class="absolute right-3 top-3 rounded-full bg-white/15 px-2 py-0.5 text-xs font-bold text-white/70"
+          >
+            {{ printCount }}×
+          </span>
+
+          <div
+            v-if="printState === 'printing'"
+            class="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white"
+          />
           <svg
+            v-else
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
             fill="currentColor"
@@ -220,7 +298,7 @@ watch(
               clip-rule="evenodd"
             />
           </svg>
-          Print
+          {{ printLabel }}
         </button>
 
         <!-- Share (secondary) -->

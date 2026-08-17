@@ -109,6 +109,10 @@ const savedPhotoPath = ref<string | null>(null)
 const uploadResult = ref<UploadResult | null>(null)
 const uploadStatus = ref<UploadStatus>('idle')
 const serverUrl = ref('')
+type PrintState = 'idle' | 'printing' | 'printed' | 'failed'
+
+const printState = ref<PrintState>('idle')
+const printCount = ref(0)
 const printToast = ref<string | null>(null)
 let printToastTimer: ReturnType<typeof setTimeout> | null = null
 let retryIntervalId: ReturnType<typeof setInterval> | null = null
@@ -182,9 +186,16 @@ function showPrintToast(message: string): void {
 }
 
 async function handlePrint(): Promise<void> {
-  if (!savedPhotoPath.value) return
+  if (!savedPhotoPath.value || printState.value === 'printing') return
+
+  printState.value = 'printing'
   const success = await window.api.photos.print(savedPhotoPath.value)
-  if (!success) {
+
+  if (success) {
+    printCount.value++
+    printState.value = 'printed'
+  } else {
+    printState.value = 'failed'
     showPrintToast('Printing failed. Please check your printer.')
   }
 }
@@ -235,6 +246,8 @@ function handleNewPhoto(): void {
   savedPhotoPath.value = null
   uploadResult.value = null
   uploadStatus.value = 'idle'
+  printState.value = 'idle'
+  printCount.value = 0
   currentScreen.value = 'photobooth'
 }
 
@@ -339,6 +352,8 @@ async function returnToPhotobooth(): Promise<void> {
       :photo-data-url="compositedPhoto.dataUrl"
       :auto-return-seconds="autoReturnSeconds"
       :printer-configured="!!printerName"
+      :print-state="printState"
+      :print-count="printCount"
       :upload-status="uploadStatus"
       :upload-result="uploadResult"
       :server-url="serverUrl"

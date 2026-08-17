@@ -53,6 +53,37 @@ body {
   animation: float 3s ease-in-out infinite;
 }
 
+/* Halo behind the QR code — draws the eye to it from across the booth */
+@keyframes qr-halo {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.15;
+  }
+}
+
+.animate-qr-halo {
+  animation: qr-halo 2.4s ease-in-out infinite;
+}
+
+@keyframes nudge-left {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(-6px);
+  }
+}
+
+.animate-nudge-left {
+  animation: nudge-left 1.6s ease-in-out infinite;
+}
+
 /* === Screen transitions === */
 .fade-enter-active,
 .fade-leave-active {
