@@ -60,6 +60,12 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
+    <!-- Background dim for contrast -->
+    <div
+      v-if="active && currentCount > 0"
+      class="pointer-events-none fixed inset-0 z-40 bg-black/30"
+    />
+
     <!-- Countdown number -->
     <div
       v-if="active && currentCount > 0"
@@ -67,7 +73,7 @@ onUnmounted(() => {
     >
       <span
         :key="animKey"
-        class="countdown-number text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]"
+        class="countdown-number text-white drop-shadow-[0_4px_20px_rgba(0,0,0,0.9)]"
       >
         {{ currentCount }}
       </span>
@@ -83,7 +89,7 @@ onUnmounted(() => {
 
 <style scoped>
 .countdown-number {
-  font-size: 180px;
+  font-size: 200px;
   font-weight: 800;
   line-height: 1;
   animation: countdown-tick 0.8s ease-out;
