@@ -49,6 +49,32 @@ interface CameraAPI {
   getAccessStatus(): Promise<string>
 }
 
+type UpdateStatus =
+  | 'unsupported'
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'error'
+
+interface UpdateState {
+  status: UpdateStatus
+  currentVersion: string
+  version: string | null
+  releaseNotes: string | null
+  percent: number
+  error: string | null
+}
+
+interface UpdatesAPI {
+  getState(): Promise<UpdateState>
+  check(): Promise<UpdateState>
+  download(): Promise<UpdateState>
+  install(): Promise<void>
+  onState(callback: (state: UpdateState) => void): () => void
+}
+
 interface FotoboxAPI {
   kiosk: KioskAPI
   settings: SettingsAPI
@@ -56,6 +82,7 @@ interface FotoboxAPI {
   uploadQueue: UploadQueueAPI
   printers: PrintersAPI
   camera: CameraAPI
+  updates: UpdatesAPI
 }
 
 declare global {

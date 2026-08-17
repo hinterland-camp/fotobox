@@ -5,7 +5,14 @@ directories:
 files:
   - out/**/*
   - package.json
+  # electron-updater stays external so it can resolve at runtime;
+  # electron-builder prunes this to production dependencies.
+  - node_modules/**/*
   - "!**/*.map"
+publish:
+  provider: github
+  owner: hinterland-camp
+  repo: fotobox
 win:
   target:
     - target: nsis

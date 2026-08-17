@@ -1,0 +1,42 @@
+name: Release
+
+# Tag a commit to cut a release:
+#   npm version --workspace apps/desktop <version> (or edit the version by hand)
+#   git tag v1.2.3 && git push origin v1.2.3
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Publish Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package
+        run: pnpm --filter @fotobox/shared build
+
+      - name: Typecheck
+        run: pnpm --filter @fotobox/desktop typecheck
+
+      # Publishes the installer plus the latest.yml feed electron-updater reads
+      - name: Build and publish installer
+        run: pnpm --filter @fotobox/desktop release:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

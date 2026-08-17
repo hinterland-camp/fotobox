@@ -1,6 +1,60 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import CameraPreview from './CameraPreview.vue'
+
+type UpdateStatus =
+  | 'unsupported'
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'error'
+
+interface UpdateState {
+  status: UpdateStatus
+  currentVersion: string
+  version: string | null
+  releaseNotes: string | null
+  percent: number
+  error: string | null
+}
+
+const update = ref<UpdateState | null>(null)
+let stopUpdateListener: (() => void) | null = null
+
+const updateMessage = computed(() => {
+  const u = update.value
+  if (!u) return ''
+  switch (u.status) {
+    case 'unsupported':
+      return 'Updates are only available in the installed app.'
+    case 'checking':
+      return 'Looking for a new version...'
+    case 'available':
+      return `Version ${u.version} is available.`
+    case 'downloading':
+      return `Downloading version ${u.version}... ${u.percent}%`
+    case 'ready':
+      return `Version ${u.version} is ready to install.`
+    case 'error':
+      return u.error ?? 'Update failed.'
+    default:
+      return 'The app is up to date.'
+  }
+})
+
+async function onCheckUpdate(): Promise<void> {
+  update.value = (await window.api.updates.check()) as UpdateState
+}
+
+async function onDownloadUpdate(): Promise<void> {
+  update.value = (await window.api.updates.download()) as UpdateState
+}
+
+async function onInstallUpdate(): Promise<void> {
+  await window.api.updates.install()
+}
 
 const emit = defineEmits<{
   returnToPhotobooth: []
@@ -66,6 +120,15 @@ onMounted(async () => {
   await loadSettings()
   await Promise.all([loadCameras(), loadPrinters()])
   loading.value = false
+
+  update.value = (await window.api.updates.getState()) as UpdateState
+  stopUpdateListener = window.api.updates.onState((state) => {
+    update.value = state as UpdateState
+  })
+})
+
+onUnmounted(() => {
+  stopUpdateListener?.()
 })
 
 async function saveSetting(key: string, value: unknown): Promise<void> {
@@ -309,6 +372,71 @@ async function onCountdownChange(e: Event): Promise<void> {
           </div>
           <p class="mt-2 text-sm text-zinc-600">
             Seconds before capture (1–10)
+          </p>
+        </section>
+
+        <!-- Updates Section -->
+        <section v-if="update" class="rounded-2xl bg-zinc-900/60 p-6">
+          <h2
+            class="mb-4 text-xs font-semibold uppercase tracking-widest text-zinc-500"
+          >
+            App Update
+          </h2>
+
+          <div class="flex items-center justify-between gap-4">
+            <div class="min-w-0">
+              <p
+                class="text-base"
+                :class="update.status === 'error' ? 'text-red-400' : 'text-white'"
+              >
+                {{ updateMessage }}
+              </p>
+              <p class="mt-1 text-sm text-zinc-600">
+                Installed version {{ update.currentVersion }}
+              </p>
+            </div>
+
+            <button
+              v-if="update.status === 'available'"
+              class="h-14 flex-shrink-0 rounded-xl bg-blue-600 px-6 text-base font-semibold text-white transition-transform active:scale-[0.97]"
+              @click="onDownloadUpdate"
+            >
+              Download
+            </button>
+            <button
+              v-else-if="update.status === 'ready'"
+              class="h-14 flex-shrink-0 rounded-xl bg-blue-600 px-6 text-base font-semibold text-white transition-transform active:scale-[0.97]"
+              @click="onInstallUpdate"
+            >
+              Install &amp; Restart
+            </button>
+            <button
+              v-else-if="update.status !== 'unsupported'"
+              class="h-14 flex-shrink-0 rounded-xl bg-zinc-700/60 px-6 text-base font-medium text-white transition-colors active:bg-zinc-600 disabled:opacity-50"
+              :disabled="update.status === 'checking' || update.status === 'downloading'"
+              @click="onCheckUpdate"
+            >
+              Check
+            </button>
+          </div>
+
+          <!-- Download progress -->
+          <div
+            v-if="update.status === 'downloading'"
+            class="mt-4 h-1.5 overflow-hidden rounded-full bg-zinc-800"
+          >
+            <div
+              class="h-full rounded-full bg-blue-500 transition-[width] duration-300"
+              :style="{ width: `${update.percent}%` }"
+            />
+          </div>
+
+          <!-- Release notes -->
+          <p
+            v-if="update.releaseNotes && update.status !== 'idle'"
+            class="custom-scrollbar mt-4 max-h-32 overflow-y-auto whitespace-pre-line text-sm text-zinc-500"
+          >
+            {{ update.releaseNotes }}
           </p>
         </section>
       </div>

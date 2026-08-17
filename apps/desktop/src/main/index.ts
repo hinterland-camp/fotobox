@@ -14,6 +14,7 @@ import {
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { basename, join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
+import { setupUpdater } from './updater'
 
 // --- Upload Queue ---
 
@@ -422,6 +423,8 @@ app.whenReady().then(async () => {
   })
 
   createWindow()
+
+  setupUpdater({ allowQuit: () => setAllowQuit(true) })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

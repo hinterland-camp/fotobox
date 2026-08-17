@@ -1,6 +1,6 @@
 {
   "name": "@fotobox/desktop",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Fotobox Electron desktop app",
   "main": "./out/main/index.js",
@@ -13,12 +13,14 @@
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "lint": "oxlint .",
-    "format": "echo 'no formatter configured'"
+    "format": "echo 'no formatter configured'",
+    "release:win": "electron-vite build && electron-builder --win --x64 --publish always"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "@fotobox/shared": "workspace:*"
+    "@fotobox/shared": "workspace:*",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^2.0.0",

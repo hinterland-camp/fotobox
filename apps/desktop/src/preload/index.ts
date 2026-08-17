@@ -40,6 +40,17 @@ const api = {
   },
   camera: {
     getAccessStatus: (): Promise<string> => ipcRenderer.invoke('camera:getAccessStatus')
+  },
+  updates: {
+    getState: (): Promise<unknown> => ipcRenderer.invoke('updates:getState'),
+    check: (): Promise<unknown> => ipcRenderer.invoke('updates:check'),
+    download: (): Promise<unknown> => ipcRenderer.invoke('updates:download'),
+    install: (): Promise<void> => ipcRenderer.invoke('updates:install'),
+    onState: (callback: (state: unknown) => void): (() => void) => {
+      const listener = (_event: unknown, state: unknown): void => callback(state)
+      ipcRenderer.on('updates:state', listener)
+      return () => ipcRenderer.removeListener('updates:state', listener)
+    }
   }
 }
 
