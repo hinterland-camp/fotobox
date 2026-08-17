@@ -1,1 +1,23 @@
 @import "tailwindcss";
+
+/* Brand tokens taken from hinterland.camp: Poppins over Lora, ink on white,
+   with the teal used for supporting surfaces. */
+@theme {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Lora", ui-serif, Georgia, Cambria, "Times New Roman", serif;
+
+  --color-ink: #272727;
+  --color-ink-muted: #4e4e4e;
+  --color-ink-soft: #818181;
+  --color-line: #e4e4e4;
+  --color-paper: #f8f8f8;
+
+  --color-teal: #518489;
+  --color-teal-dark: #466d74;
+  --color-teal-soft: #e0eded;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

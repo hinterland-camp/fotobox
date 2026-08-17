@@ -1,7 +1,7 @@
 {
-  "logo": "",
-  "tagline": "Captured at hinterland.camp",
-  "links": [{ "label": "hinterland.camp", "url": "https://hinterland.camp" }],
+  "logo": "/hinterland-logo.svg",
+  "tagline": "",
+  "links": [],
   "appCta": {
     "headline": "Get the hinterland app",
     "fallbackUrl": "https://hinterland.camp/app"

@@ -4,7 +4,7 @@ import type { Branding, BrandingAppCta } from '@fotobox/shared'
 
 const defaultBranding: Branding = {
   logo: '',
-  tagline: 'Powered by Fotobox',
+  tagline: '',
   links: [],
 }
 
@@ -44,7 +44,8 @@ export default defineEventHandler((): Branding => {
     const appCta = parseAppCta(parsed.appCta)
     return {
       logo: parsed.logo || defaultBranding.logo,
-      tagline: parsed.tagline || defaultBranding.tagline,
+      // ?? not ||, so an intentionally empty tagline stays empty
+      tagline: parsed.tagline ?? defaultBranding.tagline,
       links: Array.isArray(parsed.links) ? parsed.links.slice(0, 3) : defaultBranding.links,
       ...(appCta ? { appCta } : {}),
     }
