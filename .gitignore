@@ -10,3 +10,5 @@ dist/
 !.env.example
 data/
 uploads/
+*.tsbuildinfo
+release/

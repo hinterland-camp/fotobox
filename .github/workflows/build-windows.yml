@@ -1,0 +1,45 @@
+name: Build Windows Installer
+
+on:
+  push:
+    branches: [main, feature/fotobox]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build NSIS installer (x64)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # @fotobox/shared resolves through dist/, which is not committed
+      - name: Build shared package
+        run: pnpm --filter @fotobox/shared build
+
+      - name: Typecheck
+        run: pnpm --filter @fotobox/desktop typecheck
+
+      - name: Lint
+        run: pnpm --filter @fotobox/desktop lint
+
+      - name: Build installer
+        run: pnpm --filter @fotobox/desktop build:win
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: fotobox-windows-installer
+          path: apps/desktop/release/*.exe
+          if-no-files-found: error
