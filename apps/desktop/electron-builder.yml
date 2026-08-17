@@ -13,6 +13,8 @@ publish:
   provider: github
   owner: hinterland-camp
   repo: fotobox
+  # Draft releases are not downloadable, so the updater would never see them
+  releaseType: release
 win:
   target:
     - target: nsis
