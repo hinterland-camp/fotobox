@@ -1,4 +1,16 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, net, ShareMenu, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  globalShortcut,
+  ipcMain,
+  net,
+  powerSaveBlocker,
+  session,
+  ShareMenu,
+  shell,
+  systemPreferences
+} from 'electron'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { basename, join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
@@ -43,6 +55,8 @@ function removeFromUploadQueue(filePath: string): void {
 }
 
 let allowQuit = false
+let powerSaveBlockerId: number | null = null
+let cameraAccessRefused = false
 
 export function setAllowQuit(value: boolean): void {
   allowQuit = value
@@ -67,7 +81,7 @@ const defaultSettings: Settings = {
   framePath: '',
   printerName: '',
   serverUrl: '',
-  countdownSeconds: 3,
+  countdownSeconds: 6,
   savePath: join(app.getPath('home'), 'Pictures', 'Fotobox'),
   autoReturnSeconds: 30
 }
@@ -133,8 +147,33 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.fotobox.desktop')
+app.whenReady().then(async () => {
+  electronApp.setAppUserModelId('camp.hinterland.fotobox')
+
+  // macOS hands back a black frame instead of an error when camera access has
+  // not been granted through TCC, so ask for it before any window can call
+  // getUserMedia. No-op on Windows, where the booth actually runs.
+  if (process.platform === 'darwin' && systemPreferences.getMediaAccessStatus('camera') !== 'granted') {
+    // A refused request leaves the status at 'not-determined' (macOS attributes
+    // it to the launching app), so remember the failure — otherwise the booth
+    // silently shows black frames with nothing to explain them.
+    cameraAccessRefused = !(await systemPreferences.askForMediaAccess('camera'))
+  }
+
+  // Auto-launch on boot (packaged builds only, so dev runs don't register autostart)
+  if (app.isPackaged) {
+    app.setLoginItemSettings({ openAtLogin: true })
+  }
+
+  // Prevent the display from sleeping while the kiosk is running
+  powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep')
+
+  // Grant camera access without a prompt — the booth is unattended, so a
+  // permission dialog the guest cannot answer would stall the whole flow.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'media')
+  })
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media')
 
   // Block OS keyboard shortcuts that could exit kiosk mode
   const blockedShortcuts = [
@@ -187,7 +226,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('settings:set', (_event, key: keyof Settings, value: Settings[keyof Settings]) => {
     const settings = loadSettings()
-    ;(settings as unknown as Record<string, Settings[keyof Settings]>)[key] = value
+      ; (settings as unknown as Record<string, Settings[keyof Settings]>)[key] = value
     saveSettings(settings)
   })
 
@@ -361,6 +400,14 @@ app.whenReady().then(() => {
     }
   )
 
+  // --- Camera IPC handler ---
+
+  ipcMain.handle('camera:getAccessStatus', (): string => {
+    if (process.platform !== 'darwin') return 'granted'
+    if (cameraAccessRefused) return 'denied'
+    return systemPreferences.getMediaAccessStatus('camera')
+  })
+
   // --- Printers IPC handler ---
 
   ipcMain.handle('printers:getAll', async () => {
@@ -381,6 +428,11 @@ app.whenReady().then(() => {
 app.on('before-quit', (e) => {
   if (!allowQuit) {
     e.preventDefault()
+    return
+  }
+  if (powerSaveBlockerId !== null && powerSaveBlocker.isStarted(powerSaveBlockerId)) {
+    powerSaveBlocker.stop(powerSaveBlockerId)
+    powerSaveBlockerId = null
   }
 })
 

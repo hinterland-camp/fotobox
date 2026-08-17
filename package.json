@@ -12,7 +12,13 @@
     "typecheck": "turbo run typecheck"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "@parcel/watcher", "electron", "better-sqlite3"],
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@parcel/watcher",
+      "electron",
+      "better-sqlite3",
+      "electron-winstaller"
+    ],
     "overrides": {
       "@types/node": "^22"
     }
