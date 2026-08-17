@@ -4,6 +4,11 @@ export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
   css: ["./app/assets/css/main.css"],
+  runtimeConfig: {
+    // Shared secret the booth sends when uploading. Set NUXT_UPLOAD_TOKEN in
+    // the deployment; uploads are refused while it is empty.
+    uploadToken: "",
+  },
   app: {
     head: {
       htmlAttrs: { lang: "de" },

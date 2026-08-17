@@ -66,6 +66,7 @@ const framePath = ref('')
 const framePreviewUrl = ref('')
 const printerName = ref('')
 const serverUrl = ref('')
+const serverToken = ref('')
 const password = ref('')
 const countdownSeconds = ref(3)
 
@@ -82,6 +83,7 @@ async function loadSettings(): Promise<void> {
   framePath.value = (settings.framePath as string) || ''
   printerName.value = (settings.printerName as string) || ''
   serverUrl.value = (settings.serverUrl as string) || ''
+  serverToken.value = (settings.serverToken as string) || ''
   password.value = (settings.password as string) || ''
   countdownSeconds.value = (settings.countdownSeconds as number) || 3
 
@@ -175,6 +177,12 @@ async function onServerUrlChange(e: Event): Promise<void> {
   const value = (e.target as HTMLInputElement).value
   serverUrl.value = value
   await saveSetting('serverUrl', value)
+}
+
+async function onServerTokenChange(e: Event): Promise<void> {
+  const value = (e.target as HTMLInputElement).value
+  serverToken.value = value
+  await saveSetting('serverToken', value)
 }
 
 async function onPasswordChange(e: Event): Promise<void> {
@@ -324,6 +332,21 @@ async function onCountdownChange(e: Event): Promise<void> {
             :value="serverUrl"
             @change="onServerUrlChange"
           />
+
+          <label class="mt-4 mb-2 block text-sm text-zinc-400" for="settings-server-token">
+            Upload Token
+          </label>
+          <input
+            id="settings-server-token"
+            type="password"
+            class="h-14 w-full rounded-xl border border-zinc-700/50 bg-zinc-800 px-4 text-base text-white placeholder-zinc-600 outline-none transition-colors focus:border-blue-500"
+            placeholder="Shared secret from the server"
+            :value="serverToken"
+            @change="onServerTokenChange"
+          />
+          <p class="mt-2 text-sm text-zinc-600">
+            Must match NUXT_UPLOAD_TOKEN on the server, or uploads are rejected.
+          </p>
         </section>
 
         <!-- Security Section -->

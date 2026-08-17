@@ -71,6 +71,7 @@ interface Settings {
   framePath: string
   printerName: string
   serverUrl: string
+  serverToken: string
   countdownSeconds: number
   savePath: string
   autoReturnSeconds: number
@@ -82,6 +83,7 @@ const defaultSettings: Settings = {
   framePath: '',
   printerName: '',
   serverUrl: '',
+  serverToken: '',
   countdownSeconds: 6,
   savePath: join(app.getPath('home'), 'Pictures', 'Fotobox'),
   autoReturnSeconds: 30
@@ -350,6 +352,10 @@ app.whenReady().then(async () => {
       const url = `${serverUrl.replace(/\/$/, '')}/api/photos`
       const response = await net.fetch(url, {
         method: 'POST',
+        // The server rejects uploads without the shared token
+        headers: settings.serverToken
+          ? { Authorization: `Bearer ${settings.serverToken}` }
+          : undefined,
         body: formData
       })
 
@@ -394,7 +400,13 @@ app.whenReady().then(async () => {
 
       const url = `${serverUrl.replace(/\/$/, '')}/api/photos`
       try {
-        const response = await net.fetch(url, { method: 'POST', body: formData })
+        const response = await net.fetch(url, {
+          method: 'POST',
+          headers: settings.serverToken
+            ? { Authorization: `Bearer ${settings.serverToken}` }
+            : undefined,
+          body: formData
+        })
         if (!response.ok) return null
         const result = (await response.json()) as { id: string; downloadUrl: string }
         removeFromUploadQueue(filePath)

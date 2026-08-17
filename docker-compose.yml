@@ -12,6 +12,9 @@ services:
       NODE_ENV: production
       NITRO_PORT: 3000
       NITRO_HOST: 0.0.0.0
+      # Shared secret the booth must send to upload. Set this in Coolify —
+      # while it is empty the server refuses every upload.
+      NUXT_UPLOAD_TOKEN: ${NUXT_UPLOAD_TOKEN:?set a long random upload token}
     ports:
       - "3000:3000"
     volumes:

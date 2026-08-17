@@ -7,6 +7,9 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 const ALLOWED_TYPES = ['image/png', 'image/jpeg']
 
 export default defineEventHandler(async (event) => {
+  // Only a booth holding the shared token may upload
+  requireUploadAuth(event)
+
   const form = await readMultipartFormData(event)
 
   if (!form || form.length === 0) {
