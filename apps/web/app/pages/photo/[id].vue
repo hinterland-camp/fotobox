@@ -9,6 +9,88 @@ const { data: branding } = await useFetch<Branding>('/api/branding')
 
 const photoUrl = `/api/photos/${photoId}/download`
 
+const shareState = ref<'idle' | 'copied' | 'failed'>('idle')
+const photoPageUrl = ref('')
+
+onMounted(() => {
+  photoPageUrl.value = window.location.href
+})
+
+// WhatsApp works by plain link everywhere, so it stays reachable even when the
+// browser offers no share sheet.
+const whatsappUrl = computed(
+  () =>
+    `https://wa.me/?text=${encodeURIComponent(
+      'Mein Foto aus der hinterland Fotobox: ' + photoPageUrl.value
+    )}`
+)
+
+const shareLabel = computed(() => {
+  if (shareState.value === 'copied') return 'Link kopiert'
+  if (shareState.value === 'failed') return 'Kopieren nicht möglich'
+  return 'Foto teilen'
+})
+
+async function copyLink(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    // Clipboard access is refused when the document is not focused, so fall
+    // back to a selection-based copy rather than leaving a dead button.
+  }
+
+  try {
+    const field = document.createElement('textarea')
+    field.value = text
+    field.setAttribute('readonly', '')
+    field.style.position = 'fixed'
+    field.style.opacity = '0'
+    document.body.appendChild(field)
+    field.select()
+    const copied = document.execCommand('copy')
+    field.remove()
+    return copied
+  } catch {
+    return false
+  }
+}
+
+function flashShareState(state: 'copied' | 'failed'): void {
+  shareState.value = state
+  setTimeout(() => (shareState.value = 'idle'), 2500)
+}
+
+// The native sheet is what puts Instagram, WhatsApp and the rest in reach —
+// no web link can post an image to Instagram directly.
+async function sharePhoto(): Promise<void> {
+  const pageUrl = photoPageUrl.value || window.location.href
+
+  try {
+    const response = await fetch(photoUrl)
+    const blob = await response.blob()
+    const file = new File([blob], 'hinterland-foto.png', { type: blob.type || 'image/png' })
+
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], text: 'Mein Foto aus der hinterland Fotobox' })
+      return
+    }
+  } catch {
+    // Sharing the file failed or was dismissed — try the link instead
+  }
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Mein hinterland Foto', url: pageUrl })
+    } catch {
+      // Dismissed by the guest; nothing more to do
+    }
+    return
+  }
+
+  flashShareState((await copyLink(pageUrl)) ? 'copied' : 'failed')
+}
+
 if (photo.value) {
   useHead({
     title: 'Dein Foto — hinterland',
@@ -87,6 +169,40 @@ if (photo.value) {
           <line x1="12" y1="15" x2="12" y2="3" />
         </svg>
         Foto herunterladen
+      </a>
+
+      <!-- Share -->
+      <button
+        class="mt-3 flex w-full items-center justify-center gap-2.5 rounded-full border border-line px-6 py-4 text-base font-semibold text-ink transition hover:bg-paper active:scale-[0.99]"
+        @click="sharePhoto"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+        </svg>
+        {{ shareLabel }}
+      </button>
+
+      <a
+        :href="whatsappUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="mt-3 text-center text-sm font-medium text-ink-soft underline underline-offset-4 transition hover:text-ink"
+      >
+        Per WhatsApp senden
       </a>
 
       <!-- App call to action — an open section, not a card, so the buttons

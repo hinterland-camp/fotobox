@@ -120,14 +120,15 @@ defineExpose({ videoRef, stream })
 
 <template>
   <div class="relative flex h-full w-full items-center justify-center bg-black">
-    <!-- Live camera feed -->
+    <!-- Live camera feed. Mirrored so guests see themselves as in a mirror;
+         this is CSS only, so the capture keeps its real orientation. -->
     <video
       v-show="stream"
       ref="videoRef"
       autoplay
       playsinline
       muted
-      class="h-full w-full object-cover"
+      class="h-full w-full -scale-x-100 object-cover"
     />
 
     <!-- Error state -->

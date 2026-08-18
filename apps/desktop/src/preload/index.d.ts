@@ -20,9 +20,15 @@ interface UploadResult {
 interface PhotosAPI {
   save(buffer: ArrayBuffer): Promise<string>
   print(filePath: string): Promise<boolean>
-  share(filePath: string): Promise<boolean>
   upload(filePath: string): Promise<UploadResult | null>
   testConnection(): Promise<{ ok: boolean; message: string }>
+  list(limit?: number): Promise<GalleryPhoto[]>
+  getDataUrl(filePath: string): Promise<string | null>
+}
+
+interface GalleryPhoto {
+  path: string
+  thumbnail: string
 }
 
 interface QueueItem {

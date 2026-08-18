@@ -17,13 +17,16 @@ const api = {
   photos: {
     save: (buffer: ArrayBuffer): Promise<string> => ipcRenderer.invoke('photos:save', buffer),
     print: (filePath: string): Promise<boolean> => ipcRenderer.invoke('photos:print', filePath),
-    share: (filePath: string): Promise<boolean> => ipcRenderer.invoke('photos:share', filePath),
     upload: (
       filePath: string
     ): Promise<{ id: string; downloadUrl: string } | null> =>
       ipcRenderer.invoke('photos:upload', filePath),
     testConnection: (): Promise<{ ok: boolean; message: string }> =>
-      ipcRenderer.invoke('photos:testConnection')
+      ipcRenderer.invoke('photos:testConnection'),
+    list: (limit?: number): Promise<Array<{ path: string; thumbnail: string }>> =>
+      ipcRenderer.invoke('photos:list', limit),
+    getDataUrl: (filePath: string): Promise<string | null> =>
+      ipcRenderer.invoke('photos:getDataUrl', filePath)
   },
   uploadQueue: {
     getAll: (): Promise<Array<{ filePath: string; addedAt: string }>> =>

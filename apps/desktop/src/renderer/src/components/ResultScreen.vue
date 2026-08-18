@@ -51,7 +51,6 @@ watch(
 const emit = defineEmits<{
   newPhoto: []
   print: []
-  share: []
 }>()
 
 const remainingSeconds = ref(props.autoReturnSeconds)
@@ -92,11 +91,6 @@ function handleNewPhoto(): void {
 function handlePrint(): void {
   handleInteraction()
   emit('print')
-}
-
-function handleShare(): void {
-  handleInteraction()
-  emit('share')
 }
 
 onMounted(() => {
@@ -301,25 +295,6 @@ watch(
           {{ printLabel }}
         </button>
 
-        <!-- Share (secondary) -->
-        <button
-          class="flex flex-1 items-center justify-center gap-2.5 rounded-2xl bg-white/10 py-5 text-base font-bold text-white backdrop-blur-md transition-transform active:scale-[0.97]"
-          @click.stop="handleShare"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            class="h-5 w-5"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M15.75 4.5a3 3 0 1 1 .825 2.066l-8.421 4.679a3.002 3.002 0 0 1 0 1.51l8.421 4.679a3 3 0 1 1-.729 1.31l-8.421-4.678a3 3 0 1 1 0-4.132l8.421-4.679a3 3 0 0 1-.096-.755Z"
-              clip-rule="evenodd"
-            />
-          </svg>
-          Share
-        </button>
       </div>
 
       <!-- Auto-return progress bar -->

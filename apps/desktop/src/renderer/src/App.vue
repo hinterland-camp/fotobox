@@ -4,6 +4,7 @@ import CameraPreview from './components/CameraPreview.vue'
 import CountdownOverlay from './components/CountdownOverlay.vue'
 import PasswordDialog from './components/PasswordDialog.vue'
 import ResultScreen from './components/ResultScreen.vue'
+import PhotoGallery from './components/PhotoGallery.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 
 interface CompositedPhoto {
@@ -15,6 +16,7 @@ type Screen = 'photobooth' | 'result' | 'settings'
 
 const currentScreen = ref<Screen>('photobooth')
 const showPasswordDialog = ref(false)
+const showGallery = ref(false)
 const settingsLoaded = ref(false)
 const cameraDeviceId = ref('')
 const frameDataUrl = ref('')
@@ -42,7 +44,7 @@ async function loadPhotoboothSettings(): Promise<void> {
 }
 
 function handlePhotoboothClick(): void {
-  if (showPasswordDialog.value) return
+  if (showPasswordDialog.value || showGallery.value) return
   // Tapping again during the countdown cancels it — guests change their mind
   countdownActive.value = !countdownActive.value
 }
@@ -201,11 +203,6 @@ async function handlePrint(): Promise<void> {
   }
 }
 
-async function handleShare(): Promise<void> {
-  if (!savedPhotoPath.value) return
-  await window.api.photos.share(savedPhotoPath.value)
-}
-
 function handleAdminClick(): void {
   if (countdownActive.value) return
   showPasswordDialog.value = true
@@ -319,6 +316,25 @@ async function returnToPhotobooth(): Promise<void> {
         </div>
       </div>
 
+      <!-- Gallery of photos taken so far -->
+      <button
+        v-if="!countdownActive"
+        class="absolute bottom-3 right-3 z-10 flex items-center gap-2 rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-white/80 backdrop-blur-md transition-transform active:scale-[0.97]"
+        @click.stop="showGallery = true"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          class="h-5 w-5"
+        >
+          <path
+            d="M3.75 3.75h6v6h-6v-6ZM14.25 3.75h6v6h-6v-6ZM3.75 14.25h6v6h-6v-6ZM14.25 14.25h6v6h-6v-6Z"
+          />
+        </svg>
+        Photos
+      </button>
+
       <!-- Admin button (barely visible gear icon in bottom-left) -->
       <button
         class="absolute bottom-3 left-3 z-10 flex h-11 w-11 items-center justify-center rounded-full text-white/[0.07] transition-opacity duration-500 active:text-white/25"
@@ -362,7 +378,6 @@ async function returnToPhotobooth(): Promise<void> {
       :server-url="serverUrl"
       @new-photo="handleNewPhoto"
       @print="handlePrint"
-      @share="handleShare"
     />
 
     <!-- Settings Screen -->
@@ -372,6 +387,9 @@ async function returnToPhotobooth(): Promise<void> {
       @return-to-photobooth="returnToPhotobooth"
     />
   </Transition>
+
+  <!-- Photo gallery -->
+  <PhotoGallery :visible="showGallery" @close="showGallery = false" />
 
   <!-- Password Dialog -->
   <PasswordDialog

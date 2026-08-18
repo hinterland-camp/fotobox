@@ -4,14 +4,22 @@ import {
   dialog,
   globalShortcut,
   ipcMain,
+  nativeImage,
   net,
   powerSaveBlocker,
   session,
-  ShareMenu,
   shell,
   systemPreferences
 } from 'electron'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync
+} from 'fs'
 import { basename, join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { setupUpdater } from './updater'
@@ -358,28 +366,6 @@ app.whenReady().then(async () => {
 
   // --- Share IPC handler ---
 
-  ipcMain.handle('photos:share', async (_event, filePath: string): Promise<boolean> => {
-    if (!existsSync(filePath)) return false
-
-    if (process.platform === 'darwin') {
-      const win = BrowserWindow.getAllWindows()[0]
-      if (!win) return false
-      const menu = new ShareMenu({ filePaths: [filePath] })
-      menu.popup({ window: win })
-      return true
-    }
-
-    // Fallback: Save As dialog for Windows/Linux
-    const result = await dialog.showSaveDialog({
-      defaultPath: filePath,
-      filters: [{ name: 'Images', extensions: ['png'] }]
-    })
-
-    if (result.canceled || !result.filePath) return false
-
-    copyFileSync(filePath, result.filePath)
-    return true
-  })
 
   // --- Upload IPC handler ---
 
@@ -468,6 +454,43 @@ app.whenReady().then(async () => {
       }
     }
   )
+
+  interface GalleryPhoto {
+    path: string
+    thumbnail: string
+  }
+
+  ipcMain.handle('photos:list', (_event, limit = 60): GalleryPhoto[] => {
+    const settings = loadSettings()
+    const baseDir = settings.savePath || join(app.getPath('home'), 'Pictures', 'Fotobox')
+    if (!existsSync(baseDir)) return []
+
+    const files: Array<{ path: string; takenAt: number }> = []
+    for (const day of readdirSync(baseDir)) {
+      const dayDir = join(baseDir, day)
+      if (!statSync(dayDir).isDirectory()) continue
+      for (const name of readdirSync(dayDir)) {
+        if (!name.toLowerCase().endsWith('.png')) continue
+        const filePath = join(dayDir, name)
+        files.push({ path: filePath, takenAt: statSync(filePath).mtimeMs })
+      }
+    }
+
+    files.sort((a, b) => b.takenAt - a.takenAt)
+
+    // Thumbnails rather than full images: a long event fills this folder, and
+    // the grid would otherwise ship tens of megabytes over IPC.
+    return files.slice(0, limit).flatMap((file) => {
+      const image = nativeImage.createFromPath(file.path)
+      if (image.isEmpty()) return []
+      return [{ path: file.path, thumbnail: image.resize({ width: 360 }).toDataURL() }]
+    })
+  })
+
+  ipcMain.handle('photos:getDataUrl', (_event, filePath: string): string | null => {
+    if (!existsSync(filePath)) return null
+    return `data:image/png;base64,${readFileSync(filePath).toString('base64')}`
+  })
 
   // --- Upload Queue IPC handlers ---
 
