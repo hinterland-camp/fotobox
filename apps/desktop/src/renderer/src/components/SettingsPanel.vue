@@ -65,7 +65,7 @@ const cameraDeviceId = ref('')
 const framePath = ref('')
 const frameDataUrl = ref('')
 const printerName = ref('')
-const printSize = ref('printer')
+const printSize = ref('4x6')
 const printFit = ref('contain')
 const printRotation = ref('auto')
 const printScale = ref(100)
@@ -86,7 +86,7 @@ async function loadSettings(): Promise<void> {
   cameraDeviceId.value = (settings.cameraDeviceId as string) || ''
   framePath.value = (settings.framePath as string) || ''
   printerName.value = (settings.printerName as string) || ''
-  printSize.value = (settings.printSize as string) || 'printer'
+  printSize.value = (settings.printSize as string) || '4x6'
   printFit.value = (settings.printFit as string) || 'contain'
   printRotation.value = (settings.printRotation as string) || 'auto'
   printScale.value = (settings.printScale as number) || 100

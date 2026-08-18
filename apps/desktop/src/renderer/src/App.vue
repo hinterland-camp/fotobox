@@ -49,17 +49,40 @@ function handlePhotoboothClick(): void {
   countdownActive.value = !countdownActive.value
 }
 
+// The paper is 10x15cm (4x6") at 300 dpi, so the photo is captured at exactly
+// the sheet's shape and pixel count. One image serves capture, upload and
+// print without any late re-fitting.
+const PRINT_WIDTH = 1800
+const PRINT_HEIGHT = 1200
+
 function capturePhoto(): string | null {
   const video = cameraPreviewRef.value?.videoRef
   if (!video || video.readyState < video.HAVE_CURRENT_DATA) return null
 
   const canvas = document.createElement('canvas')
-  canvas.width = video.videoWidth
-  canvas.height = video.videoHeight
+  canvas.width = PRINT_WIDTH
+  canvas.height = PRINT_HEIGHT
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
 
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  // Centre-crop the camera frame to the paper's 3:2 before scaling, so the
+  // photo is never stretched — just trimmed like a viewfinder.
+  const target = PRINT_WIDTH / PRINT_HEIGHT
+  const vw = video.videoWidth
+  const vh = video.videoHeight
+  let sx = 0
+  let sy = 0
+  let sw = vw
+  let sh = vh
+  if (vw / vh > target) {
+    sw = vh * target
+    sx = (vw - sw) / 2
+  } else {
+    sh = vw / target
+    sy = (vh - sh) / 2
+  }
+
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, PRINT_WIDTH, PRINT_HEIGHT)
   return canvas.toDataURL('image/png')
 }
 

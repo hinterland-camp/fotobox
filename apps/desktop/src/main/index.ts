@@ -96,7 +96,7 @@ const defaultSettings: Settings = {
   cameraDeviceId: '',
   framePath: '',
   printerName: '',
-  printSize: 'printer',
+  printSize: '4x6',
   printFit: 'contain',
   printRotation: 'auto',
   printScale: 100,
