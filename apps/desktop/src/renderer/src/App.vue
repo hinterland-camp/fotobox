@@ -17,7 +17,6 @@ const currentScreen = ref<Screen>('photobooth')
 const showPasswordDialog = ref(false)
 const settingsLoaded = ref(false)
 const cameraDeviceId = ref('')
-const framePath = ref('')
 const frameDataUrl = ref('')
 const countdownSeconds = ref(3)
 const autoReturnSeconds = ref(30)
@@ -30,7 +29,6 @@ async function loadPhotoboothSettings(): Promise<void> {
   try {
     const settings = (await window.api.settings.getAll()) as Record<string, unknown>
     cameraDeviceId.value = (settings.cameraDeviceId as string) || ''
-    framePath.value = (settings.framePath as string) || ''
     frameDataUrl.value = (await window.api.frame.getDataUrl()) || ''
     countdownSeconds.value = (settings.countdownSeconds as number) || 3
     autoReturnSeconds.value = (settings.autoReturnSeconds as number) || 30
@@ -275,14 +273,6 @@ async function returnToPhotobooth(): Promise<void> {
         v-if="settingsLoaded"
         ref="cameraPreviewRef"
         :camera-device-id="cameraDeviceId"
-      />
-
-      <!-- Frame overlay -->
-      <img
-        v-if="frameDataUrl"
-        :src="frameDataUrl"
-        alt=""
-        class="pointer-events-none absolute inset-0 h-full w-full object-fill"
       />
 
       <!-- Bottom gradient for text readability -->
