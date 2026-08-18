@@ -17,13 +17,22 @@ async function requestStream(deviceId: string): Promise<MediaStream> {
   // Prefer the configured device, but never leave the booth on a black screen:
   // a stored device id can go stale (camera unplugged, ids rotated after a
   // reboot), so fall back to a soft constraint and finally to any camera.
+  // Ask for as much detail as the camera will give. Without this browsers
+  // hand back 640x480, which caps the download page and the print alike; the
+  // capture is the only original, so quality lost here is lost everywhere.
+  const quality: MediaTrackConstraints = {
+    width: { ideal: 1920 },
+    height: { ideal: 1080 }
+  }
+
   const attempts: MediaStreamConstraints[] = deviceId
     ? [
-        { video: { deviceId: { exact: deviceId } }, audio: false },
-        { video: { deviceId }, audio: false },
+        { video: { ...quality, deviceId: { exact: deviceId } }, audio: false },
+        { video: { ...quality, deviceId }, audio: false },
+        { video: { ...quality }, audio: false },
         { video: true, audio: false }
       ]
-    : [{ video: true, audio: false }]
+    : [{ video: { ...quality }, audio: false }, { video: true, audio: false }]
 
   let lastError: unknown
   for (const constraints of attempts) {

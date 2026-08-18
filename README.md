@@ -23,7 +23,9 @@ pnpm lint
 ```
 
 The booth's settings panel opens with `Escape` (default password `admin`) and
-configures the camera, frame PNG, printer, server URL and upload token.
+configures the camera, frame PNG, printer, paper size, server URL and upload
+token. Paper size must match the media loaded in the printer — photos are
+printed edge to edge on that sheet.
 
 ## Web app deployment
 

@@ -79,6 +79,7 @@ interface Settings {
   cameraDeviceId: string
   framePath: string
   printerName: string
+  printSize: string
   serverUrl: string
   serverToken: string
   countdownSeconds: number
@@ -91,12 +92,27 @@ const defaultSettings: Settings = {
   cameraDeviceId: '',
   framePath: '',
   printerName: '',
+  printSize: '4x6',
   serverUrl: '',
   serverToken: '',
   countdownSeconds: 6,
   savePath: join(app.getPath('home'), 'Pictures', 'Fotobox'),
   autoReturnSeconds: 30
 }
+
+// Media the DNP QW410 can be loaded with (inches). The photo is printed
+// edge to edge on the selected sheet, so this has to match what is in the
+// printer or the job lands on the wrong page box.
+const PRINT_SIZES: Record<string, { widthIn: number; heightIn: number }> = {
+  '4x6': { widthIn: 4, heightIn: 6 },
+  '4.5x8': { widthIn: 4.5, heightIn: 8 },
+  '4x4': { widthIn: 4, heightIn: 4 },
+  '4.5x4.5': { widthIn: 4.5, heightIn: 4.5 },
+  '2x4': { widthIn: 2, heightIn: 4 },
+  '2x4.5': { widthIn: 2, heightIn: 4.5 }
+}
+
+const MICRONS_PER_INCH = 25400
 
 function getSettingsPath(): string {
   const userDataPath = app.getPath('userData')
@@ -337,8 +353,8 @@ app.whenReady().then(async () => {
   * { margin: 0; padding: 0; }
   html, body { width: 100%; height: 100%; }
   body { display: flex; align-items: center; justify-content: center; }
-  img { max-width: 100%; max-height: 100%; object-fit: contain; }
-  @media print { @page { margin: 0; } }
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  @page { margin: 0; }
 </style></head><body>
 <img src="file://${filePath.replace(/\\/g, '/')}" />
 </body></html>`
@@ -385,13 +401,26 @@ app.whenReady().then(async () => {
       return false
     }
 
+    const size = PRINT_SIZES[settings.printSize] ?? PRINT_SIZES['4x6']
+    const photo = nativeImage.createFromPath(filePath).getSize()
+
+    // Rotate the sheet rather than letterbox: a landscape photo on portrait
+    // media would otherwise print small with white bands around it.
+    const square = size.widthIn === size.heightIn
+    const landscape = !square && photo.width > photo.height === size.heightIn > size.widthIn
+
     return new Promise<boolean>((resolve) => {
       printWindow.webContents.print(
         {
           silent: true,
           deviceName: printerName,
           printBackground: true,
-          margins: { marginType: 'none' }
+          margins: { marginType: 'none' },
+          landscape,
+          pageSize: {
+            width: Math.round(size.widthIn * MICRONS_PER_INCH),
+            height: Math.round(size.heightIn * MICRONS_PER_INCH)
+          }
         },
         (success, failureReason) => {
           if (!success) {

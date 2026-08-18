@@ -65,6 +65,7 @@ const cameraDeviceId = ref('')
 const framePath = ref('')
 const frameDataUrl = ref('')
 const printerName = ref('')
+const printSize = ref('4x6')
 const serverUrl = ref('')
 const serverToken = ref('')
 const password = ref('')
@@ -82,6 +83,7 @@ async function loadSettings(): Promise<void> {
   cameraDeviceId.value = (settings.cameraDeviceId as string) || ''
   framePath.value = (settings.framePath as string) || ''
   printerName.value = (settings.printerName as string) || ''
+  printSize.value = (settings.printSize as string) || '4x6'
   serverUrl.value = (settings.serverUrl as string) || ''
   serverToken.value = (settings.serverToken as string) || ''
   password.value = (settings.password as string) || ''
@@ -160,6 +162,22 @@ async function onPrinterChange(e: Event): Promise<void> {
   const value = (e.target as HTMLSelectElement).value
   printerName.value = value
   await saveSetting('printerName', value)
+}
+
+// Media the QW410 can be loaded with; the photo is printed edge to edge on it
+const printSizes = [
+  { value: '4x6', label: '4 × 6 in (10 × 15 cm)' },
+  { value: '4.5x8', label: '4.5 × 8 in (11 × 20 cm)' },
+  { value: '4x4', label: '4 × 4 in (10 × 10 cm)' },
+  { value: '4.5x4.5', label: '4.5 × 4.5 in (11 × 11 cm)' },
+  { value: '2x4', label: '2 × 4 in (5 × 10 cm)' },
+  { value: '2x4.5', label: '2 × 4.5 in (5 × 11 cm)' }
+]
+
+async function onPrintSizeChange(e: Event): Promise<void> {
+  const value = (e.target as HTMLSelectElement).value
+  printSize.value = value
+  await saveSetting('printSize', value)
 }
 
 async function onServerUrlChange(e: Event): Promise<void> {
@@ -323,6 +341,24 @@ async function onCountdownChange(e: Event): Promise<void> {
           </select>
           <p v-if="printers.length === 0" class="mt-2 text-sm text-zinc-600">
             No printers detected
+          </p>
+
+          <label class="mt-4 mb-2 block text-sm text-zinc-400" for="settings-print-size">
+            Paper size
+          </label>
+          <select
+            id="settings-print-size"
+            class="h-14 w-full appearance-none rounded-xl border border-zinc-700/50 bg-zinc-800 px-4 text-base text-white outline-none transition-colors focus:border-blue-500"
+            :value="printSize"
+            @change="onPrintSizeChange"
+          >
+            <option v-for="size in printSizes" :key="size.value" :value="size.value">
+              {{ size.label }}
+            </option>
+          </select>
+          <p class="mt-2 text-sm text-zinc-600">
+            Must match the media loaded in the printer. Photos are printed edge
+            to edge, so anything outside the sheet's shape is cropped.
           </p>
         </section>
 
