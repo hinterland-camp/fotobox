@@ -83,6 +83,7 @@ interface Settings {
   printSize: string
   printFit: string
   printRotation: string
+  printScale: number
   serverUrl: string
   serverToken: string
   countdownSeconds: number
@@ -98,6 +99,7 @@ const defaultSettings: Settings = {
   printSize: 'printer',
   printFit: 'contain',
   printRotation: 'auto',
+  printScale: 100,
   serverUrl: '',
   serverToken: '',
   countdownSeconds: 6,
@@ -105,15 +107,22 @@ const defaultSettings: Settings = {
   autoReturnSeconds: 30
 }
 
-// Media the DNP QW410 can be loaded with (inches). The photo is printed
-// edge to edge on the selected sheet, so this has to match what is in the
-// printer or the job lands on the wrong page box.
+// Sizes the QW410 can produce, tied to the roll that is loaded: a 4" roll
+// cannot print 4.5"-wide sheets and vice versa. Sending a size from the wrong
+// roll leaves a white stripe down one side and crops the other axis.
 const PRINT_SIZES: Record<string, { widthIn: number; heightIn: number }> = {
+  // 4x6 media roll (4" wide)
   '4x6': { widthIn: 4, heightIn: 6 },
-  '4.5x8': { widthIn: 4.5, heightIn: 8 },
+  '4x4.5': { widthIn: 4, heightIn: 4.5 },
   '4x4': { widthIn: 4, heightIn: 4 },
-  '4.5x4.5': { widthIn: 4.5, heightIn: 4.5 },
+  '4x3': { widthIn: 4, heightIn: 3 },
   '2x4': { widthIn: 2, heightIn: 4 },
+  // 4.5x8 media roll (4.5" wide)
+  '4.5x8': { widthIn: 4.5, heightIn: 8 },
+  '4.5x6': { widthIn: 4.5, heightIn: 6 },
+  '4.5x4.5': { widthIn: 4.5, heightIn: 4.5 },
+  '4.5x4': { widthIn: 4.5, heightIn: 4 },
+  '4.5x3': { widthIn: 4.5, heightIn: 3 },
   '2x4.5': { widthIn: 2, heightIn: 4.5 }
 }
 
@@ -203,6 +212,10 @@ async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message:
   // A quarter turn swaps which page edge the photo's width runs along
   const quarterTurned = rotation === 90 || rotation === 270
 
+  // Operator-tunable zoom for driver quirks that shift or overscan the page;
+  // 100 fills the fitted box exactly, smaller shrinks toward the centre.
+  const scalePct = Math.min(100, Math.max(50, Number(settings.printScale) || 100))
+
   const html = `<!DOCTYPE html>
 <html><head><style>
   * { margin: 0; padding: 0; }
@@ -213,7 +226,7 @@ async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message:
     width: ${quarterTurned ? '100vh' : '100vw'};
     height: ${quarterTurned ? '100vw' : '100vh'};
     object-fit: ${fit};
-    transform: translate(-50%, -50%) rotate(${rotation}deg);
+    transform: translate(-50%, -50%) rotate(${rotation}deg) scale(${scalePct / 100});
   }
   @page { margin: 0; }
 </style></head><body>

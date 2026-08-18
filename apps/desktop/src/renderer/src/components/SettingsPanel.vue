@@ -68,6 +68,7 @@ const printerName = ref('')
 const printSize = ref('printer')
 const printFit = ref('contain')
 const printRotation = ref('auto')
+const printScale = ref(100)
 const serverUrl = ref('')
 const serverToken = ref('')
 const password = ref('')
@@ -88,6 +89,7 @@ async function loadSettings(): Promise<void> {
   printSize.value = (settings.printSize as string) || 'printer'
   printFit.value = (settings.printFit as string) || 'contain'
   printRotation.value = (settings.printRotation as string) || 'auto'
+  printScale.value = (settings.printScale as number) || 100
   serverUrl.value = (settings.serverUrl as string) || ''
   serverToken.value = (settings.serverToken as string) || ''
   password.value = (settings.password as string) || ''
@@ -170,15 +172,19 @@ async function onPrinterChange(e: Event): Promise<void> {
 
 // Media the QW410 can be loaded with; the photo is printed edge to edge on it
 const printSizes = [
-  { value: 'printer', label: "Printer's own setting (recommended)" },
-  { value: '4x6', label: '4 × 6 in (10 × 15 cm)' },
-  { value: '4.5x8', label: '4.5 × 8 in (11 × 20 cm)' },
-  { value: '4x4', label: '4 × 4 in (10 × 10 cm)' },
-  { value: '4.5x4.5', label: '4.5 × 4.5 in (11 × 11 cm)' },
-  { value: '2x4', label: '2 × 4 in (5 × 10 cm)' },
-  { value: '2x4.5', label: '2 × 4.5 in (5 × 11 cm)' }
+  { value: 'printer', label: "Printer's own setting" },
+  { value: '4x6', label: '4 × 6 in — 4x6 roll' },
+  { value: '4x4.5', label: '4 × 4.5 in — 4x6 roll' },
+  { value: '4x4', label: '4 × 4 in — 4x6 roll' },
+  { value: '4x3', label: '4 × 3 in — 4x6 roll' },
+  { value: '2x4', label: '2 × 4 in — 4x6 roll' },
+  { value: '4.5x8', label: '4.5 × 8 in — 4.5x8 roll' },
+  { value: '4.5x6', label: '4.5 × 6 in — 4.5x8 roll' },
+  { value: '4.5x4.5', label: '4.5 × 4.5 in — 4.5x8 roll' },
+  { value: '4.5x4', label: '4.5 × 4 in — 4.5x8 roll' },
+  { value: '4.5x3', label: '4.5 × 3 in — 4.5x8 roll' },
+  { value: '2x4.5', label: '2 × 4.5 in — 4.5x8 roll' }
 ]
-
 async function onPrintSizeChange(e: Event): Promise<void> {
   const value = (e.target as HTMLSelectElement).value
   printSize.value = value
@@ -208,6 +214,14 @@ async function onPrintRotationChange(e: Event): Promise<void> {
   const value = (e.target as HTMLSelectElement).value
   printRotation.value = value
   await saveSetting('printRotation', value)
+}
+
+async function onPrintScaleChange(e: Event): Promise<void> {
+  const value = Number((e.target as HTMLInputElement).value)
+  if (value >= 50 && value <= 100) {
+    printScale.value = value
+    await saveSetting('printScale', value)
+  }
 }
 
 const printTest = ref<{ ok: boolean; message: string } | null>(null)
@@ -400,8 +414,8 @@ async function onCountdownChange(e: Event): Promise<void> {
             </option>
           </select>
           <p class="mt-2 text-sm text-zinc-600">
-            The QW410 prints whatever roll is loaded, so its own setting is
-            usually right.
+            Pick the size matching the roll loaded in the printer — the width
+            must agree with the roll (4" or 4.5") or one side prints white.
           </p>
 
           <label class="mt-4 mb-2 block text-sm text-zinc-400" for="settings-print-fit">
@@ -438,6 +452,26 @@ async function onCountdownChange(e: Event): Promise<void> {
           <p class="mt-2 text-sm text-zinc-600">
             Automatic turns a landscape photo a quarter turn so it runs along
             the long edge of the paper instead of printing small.
+          </p>
+
+          <label class="mt-4 mb-2 block text-sm text-zinc-400" for="settings-print-scale">
+            Print zoom
+          </label>
+          <div class="flex items-center gap-4">
+            <input
+              id="settings-print-scale"
+              type="range"
+              min="50"
+              max="100"
+              class="h-2 flex-1"
+              :value="printScale"
+              @input="onPrintScaleChange"
+            />
+            <span class="w-14 text-center text-xl font-bold text-white">{{ printScale }}%</span>
+          </div>
+          <p class="mt-2 text-sm text-zinc-600">
+            Zoom out if the driver still crops the edges. 100% uses the full
+            page.
           </p>
 
           <button
