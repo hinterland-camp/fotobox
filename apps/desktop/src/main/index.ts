@@ -107,23 +107,22 @@ const defaultSettings: Settings = {
   autoReturnSeconds: 30
 }
 
-// Sizes the QW410 can produce, tied to the roll that is loaded: a 4" roll
-// cannot print 4.5"-wide sheets and vice versa. Sending a size from the wrong
-// roll leaves a white stripe down one side and crops the other axis.
+// Page boxes exactly as the QW410 driver defines them (from DNP-QW410.ppd,
+// PaperDimension in points / 72). They are larger than the nominal print: the
+// driver expects overbleed and trims it, so "4x6" is really 4.22 x 6.12 in.
+// Sending the nominal size leaves the sheet part white and shifts the image.
 const PRINT_SIZES: Record<string, { widthIn: number; heightIn: number }> = {
-  // 4x6 media roll (4" wide)
-  '4x6': { widthIn: 4, heightIn: 6 },
-  '4x4.5': { widthIn: 4, heightIn: 4.5 },
-  '4x4': { widthIn: 4, heightIn: 4 },
-  '4x3': { widthIn: 4, heightIn: 3 },
-  '2x4': { widthIn: 2, heightIn: 4 },
-  // 4.5x8 media roll (4.5" wide)
-  '4.5x8': { widthIn: 4.5, heightIn: 8 },
-  '4.5x6': { widthIn: 4.5, heightIn: 6 },
-  '4.5x4.5': { widthIn: 4.5, heightIn: 4.5 },
-  '4.5x4': { widthIn: 4.5, heightIn: 4 },
-  '4.5x3': { widthIn: 4.5, heightIn: 3 },
-  '2x4.5': { widthIn: 2, heightIn: 4.5 }
+  // 4x6 media roll
+  '4x6': { widthIn: 303.84 / 72, heightIn: 440.64 / 72 },
+  '4x4.5': { widthIn: 303.84 / 72, heightIn: 332.64 / 72 },
+  '4x4': { widthIn: 303.84 / 72, heightIn: 296.64 / 72 },
+  '4x3': { widthIn: 303.84 / 72, heightIn: 224.64 / 72 },
+  // 4.5x8 media roll
+  '4.5x8': { widthIn: 337.92 / 72, heightIn: 584.64 / 72 },
+  '4.5x6': { widthIn: 337.92 / 72, heightIn: 440.64 / 72 },
+  '4.5x4.5': { widthIn: 337.92 / 72, heightIn: 332.64 / 72 },
+  '4.5x4': { widthIn: 337.92 / 72, heightIn: 296.64 / 72 },
+  '4.5x3': { widthIn: 337.92 / 72, heightIn: 224.64 / 72 }
 }
 
 const MICRONS_PER_INCH = 25400
@@ -216,19 +215,24 @@ async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message:
   // 100 fills the fitted box exactly, smaller shrinks toward the centre.
   const scalePct = Math.min(100, Math.max(50, Number(settings.printScale) || 100))
 
+  // Lay the page out in inches, not viewport units: vh/vw resolve against the
+  // window when printing, which sized the photo off the sheet entirely.
+  const sheet = size ?? PRINT_SIZES['4x6']
+  const boxWidthIn = quarterTurned ? sheet.heightIn : sheet.widthIn
+  const boxHeightIn = quarterTurned ? sheet.widthIn : sheet.heightIn
+
   const html = `<!DOCTYPE html>
 <html><head><style>
   * { margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; overflow: hidden; }
-  .stage { position: relative; width: 100%; height: 100%; }
+  html, body { width: ${sheet.widthIn}in; height: ${sheet.heightIn}in; overflow: hidden; }
+  .stage { position: relative; width: ${sheet.widthIn}in; height: ${sheet.heightIn}in; }
   img {
     position: absolute; top: 50%; left: 50%;
-    width: ${quarterTurned ? '100vh' : '100vw'};
-    height: ${quarterTurned ? '100vw' : '100vh'};
+    width: ${boxWidthIn}in; height: ${boxHeightIn}in;
     object-fit: ${fit};
     transform: translate(-50%, -50%) rotate(${rotation}deg) scale(${scalePct / 100});
   }
-  @page { margin: 0; }
+  @page { size: ${sheet.widthIn}in ${sheet.heightIn}in; margin: 0; }
 </style></head><body>
 <div class="stage"><img src="file://${filePath.replace(/\\/g, '/')}" /></div>
 </body></html>`
