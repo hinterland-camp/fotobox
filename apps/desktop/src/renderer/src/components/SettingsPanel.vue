@@ -65,7 +65,7 @@ const cameraDeviceId = ref('')
 const framePath = ref('')
 const frameDataUrl = ref('')
 const printerName = ref('')
-const printSize = ref('4x6')
+const printSize = ref('printer')
 const serverUrl = ref('')
 const serverToken = ref('')
 const password = ref('')
@@ -83,7 +83,7 @@ async function loadSettings(): Promise<void> {
   cameraDeviceId.value = (settings.cameraDeviceId as string) || ''
   framePath.value = (settings.framePath as string) || ''
   printerName.value = (settings.printerName as string) || ''
-  printSize.value = (settings.printSize as string) || '4x6'
+  printSize.value = (settings.printSize as string) || 'printer'
   serverUrl.value = (settings.serverUrl as string) || ''
   serverToken.value = (settings.serverToken as string) || ''
   password.value = (settings.password as string) || ''
@@ -166,6 +166,7 @@ async function onPrinterChange(e: Event): Promise<void> {
 
 // Media the QW410 can be loaded with; the photo is printed edge to edge on it
 const printSizes = [
+  { value: 'printer', label: "Printer's own setting (recommended)" },
   { value: '4x6', label: '4 × 6 in (10 × 15 cm)' },
   { value: '4.5x8', label: '4.5 × 8 in (11 × 20 cm)' },
   { value: '4x4', label: '4 × 4 in (10 × 10 cm)' },
@@ -178,6 +179,19 @@ async function onPrintSizeChange(e: Event): Promise<void> {
   const value = (e.target as HTMLSelectElement).value
   printSize.value = value
   await saveSetting('printSize', value)
+}
+
+const printTest = ref<{ ok: boolean; message: string } | null>(null)
+const testingPrint = ref(false)
+
+async function onTestPrint(): Promise<void> {
+  testingPrint.value = true
+  printTest.value = null
+  try {
+    printTest.value = await window.api.photos.testPrint()
+  } finally {
+    testingPrint.value = false
+  }
 }
 
 async function onServerUrlChange(e: Event): Promise<void> {
@@ -357,8 +371,25 @@ async function onCountdownChange(e: Event): Promise<void> {
             </option>
           </select>
           <p class="mt-2 text-sm text-zinc-600">
-            Must match the media loaded in the printer. Photos are printed edge
-            to edge, so anything outside the sheet's shape is cropped.
+            The QW410 prints whatever roll is loaded, so its own setting is
+            usually right. Photos are printed edge to edge, so anything outside
+            the sheet's shape is cropped.
+          </p>
+
+          <button
+            class="mt-4 h-14 w-full rounded-xl bg-zinc-700/60 px-6 text-base font-medium text-white transition-colors active:bg-zinc-600 disabled:opacity-50"
+            :disabled="testingPrint"
+            @click="onTestPrint"
+          >
+            {{ testingPrint ? 'Printing...' : 'Test print (last photo)' }}
+          </button>
+
+          <p
+            v-if="printTest"
+            class="mt-3 text-sm"
+            :class="printTest.ok ? 'text-green-400' : 'text-red-400'"
+          >
+            {{ printTest.message }}
           </p>
         </section>
 

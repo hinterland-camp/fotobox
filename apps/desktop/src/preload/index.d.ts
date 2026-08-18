@@ -24,6 +24,8 @@ interface PhotosAPI {
   testConnection(): Promise<{ ok: boolean; message: string }>
   list(limit?: number): Promise<GalleryPhoto[]>
   getDataUrl(filePath: string): Promise<string | null>
+  testPrint(): Promise<{ ok: boolean; message: string }>
+  getLastPrintError(): Promise<string | null>
 }
 
 interface GalleryPhoto {

@@ -26,7 +26,11 @@ const api = {
     list: (limit?: number): Promise<Array<{ path: string; thumbnail: string }>> =>
       ipcRenderer.invoke('photos:list', limit),
     getDataUrl: (filePath: string): Promise<string | null> =>
-      ipcRenderer.invoke('photos:getDataUrl', filePath)
+      ipcRenderer.invoke('photos:getDataUrl', filePath),
+    testPrint: (): Promise<{ ok: boolean; message: string }> =>
+      ipcRenderer.invoke('photos:testPrint'),
+    getLastPrintError: (): Promise<string | null> =>
+      ipcRenderer.invoke('photos:getLastPrintError')
   },
   uploadQueue: {
     getAll: (): Promise<Array<{ filePath: string; addedAt: string }>> =>

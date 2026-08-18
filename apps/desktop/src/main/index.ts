@@ -67,6 +67,7 @@ function removeFromUploadQueue(filePath: string): void {
 let allowQuit = false
 let powerSaveBlockerId: number | null = null
 let cameraAccessRefused = false
+let lastPrintError: string | null = null
 
 export function setAllowQuit(value: boolean): void {
   allowQuit = value
@@ -92,7 +93,7 @@ const defaultSettings: Settings = {
   cameraDeviceId: '',
   framePath: '',
   printerName: '',
-  printSize: '4x6',
+  printSize: 'printer',
   serverUrl: '',
   serverToken: '',
   countdownSeconds: 6,
@@ -136,6 +137,164 @@ function loadSettings(): Settings {
 function saveSettings(settings: Settings): void {
   const settingsPath = getSettingsPath()
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
+}
+
+function newestPhotoPath(): string | null {
+  const settings = loadSettings()
+  const baseDir = settings.savePath || join(app.getPath('home'), 'Pictures', 'Fotobox')
+  if (!existsSync(baseDir)) return null
+
+  let newest: { path: string; takenAt: number } | null = null
+  for (const day of readdirSync(baseDir)) {
+    const dayDir = join(baseDir, day)
+    if (!statSync(dayDir).isDirectory()) continue
+    for (const name of readdirSync(dayDir)) {
+      if (!name.toLowerCase().endsWith('.png')) continue
+      const filePath = join(dayDir, name)
+      const takenAt = statSync(filePath).mtimeMs
+      if (!newest || takenAt > newest.takenAt) newest = { path: filePath, takenAt }
+    }
+  }
+  return newest?.path ?? null
+}
+
+async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message: string }> {
+  const settings = loadSettings()
+  if (!settings.printerName) {
+    lastPrintError = 'No printer selected.'
+    return { ok: false, message: lastPrintError }
+  }
+  if (!existsSync(filePath)) {
+    lastPrintError = 'The photo file is missing.'
+    return { ok: false, message: lastPrintError }
+  }
+
+  const printWindow = new BrowserWindow({
+    show: false,
+    width: 800,
+    height: 600,
+    webPreferences: { sandbox: true }
+  })
+
+  const html = `<!DOCTYPE html>
+<html><head><style>
+  * { margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+  body { display: flex; align-items: center; justify-content: center; }
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  @page { margin: 0; }
+</style></head><body>
+<img src="file://${filePath.replace(/\\/g, '/')}" />
+</body></html>`
+
+  // Written to a file rather than loaded from a data: URL: a data: URL is an
+  // opaque origin, so the file:// image is blocked and the printer gets a
+  // blank sheet.
+  const pagePath = join(app.getPath('temp'), `fotobox-print-${process.pid}.html`)
+  writeFileSync(pagePath, html, 'utf-8')
+
+  const cleanUp = (): void => {
+    printWindow.close()
+    try {
+      unlinkSync(pagePath)
+    } catch {
+      // Losing a temp file is not worth failing the print over
+    }
+  }
+
+  try {
+    await printWindow.loadFile(pagePath)
+
+    // naturalWidth, not complete: a blocked or broken image also reports
+    // complete, which is exactly how blank sheets got printed.
+    const rendered = (await printWindow.webContents.executeJavaScript(`
+      new Promise((resolve) => {
+        const img = document.querySelector('img');
+        const done = () => resolve(img.naturalWidth > 0);
+        if (img.complete) return done();
+        img.onload = done;
+        img.onerror = done;
+        setTimeout(done, 5000);
+      })
+    `)) as boolean
+
+    if (!rendered) {
+      cleanUp()
+      lastPrintError = 'The photo could not be rendered, so nothing was sent to the printer.'
+      return { ok: false, message: lastPrintError }
+    }
+  } catch (err) {
+    cleanUp()
+    lastPrintError = `Preparing the page failed: ${(err as Error).message}`
+    return { ok: false, message: lastPrintError }
+  }
+
+  const photo = nativeImage.createFromPath(filePath).getSize()
+  const size = PRINT_SIZES[settings.printSize]
+
+  // Rotate the sheet rather than letterbox: a landscape photo on portrait
+  // media would otherwise print small with white bands around it.
+  const pagePortrait = size ? size.heightIn > size.widthIn : photo.height >= photo.width
+  const square = size ? size.widthIn === size.heightIn : false
+  const landscape = !square && photo.width > photo.height === pagePortrait
+
+  const base: Electron.WebContentsPrintOptions = {
+    silent: true,
+    deviceName: settings.printerName,
+    printBackground: true,
+    margins: { marginType: 'none' },
+    landscape
+  }
+
+  // The QW410 prints whatever roll is loaded, and drivers are fussy about a
+  // custom page size, so the driver's own paper comes first. An explicit size
+  // is only tried when the operator has overridden it, and a plain attempt
+  // remains as a last resort — a photo on default paper beats no photo.
+  const attempts: Array<{ label: string; options: Electron.WebContentsPrintOptions }> = []
+  if (size) {
+    attempts.push({
+      label: `${settings.printSize} media`,
+      options: {
+        ...base,
+        pageSize: {
+          width: Math.round(size.widthIn * MICRONS_PER_INCH),
+          height: Math.round(size.heightIn * MICRONS_PER_INCH)
+        }
+      }
+    })
+  }
+  attempts.push({ label: "the printer's paper", options: base })
+  attempts.push({
+    label: 'driver defaults',
+    options: { silent: true, deviceName: settings.printerName, landscape }
+  })
+
+  const failures: string[] = []
+  for (const attempt of attempts) {
+    const { ok, reason } = await new Promise<{ ok: boolean; reason: string }>((resolve) => {
+      printWindow.webContents.print(attempt.options, (success, failureReason) =>
+        resolve({ ok: success, reason: failureReason ?? '' })
+      )
+    })
+
+    if (ok) {
+      cleanUp()
+      lastPrintError = null
+      const message =
+        failures.length > 0
+          ? `Printed using ${attempt.label} after ${failures.join('; ')}`
+          : `Sent to ${settings.printerName} using ${attempt.label}.`
+      console.warn(`[print] ${message}`)
+      return { ok: true, message }
+    }
+
+    failures.push(`${attempt.label}: ${reason || 'no reason given'}`)
+    console.error(`[print] ${attempt.label} failed: ${reason}`)
+  }
+
+  cleanUp()
+  lastPrintError = failures.join(' | ')
+  return { ok: false, message: lastPrintError }
 }
 
 function createWindow(): void {
@@ -335,102 +494,19 @@ app.whenReady().then(async () => {
   // --- Print IPC handler ---
 
   ipcMain.handle('photos:print', async (_event, filePath: string): Promise<boolean> => {
-    const settings = loadSettings()
-    const printerName = settings.printerName
-    if (!printerName) return false
-    if (!existsSync(filePath)) return false
+    const result = await printPhotoFile(filePath)
+    return result.ok
+  })
 
-    // Create a hidden window to render and print the photo
-    const printWindow = new BrowserWindow({
-      show: false,
-      width: 800,
-      height: 600,
-      webPreferences: { sandbox: true }
-    })
+  ipcMain.handle('photos:getLastPrintError', (): string | null => lastPrintError)
 
-    const html = `<!DOCTYPE html>
-<html><head><style>
-  * { margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; }
-  body { display: flex; align-items: center; justify-content: center; }
-  img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  @page { margin: 0; }
-</style></head><body>
-<img src="file://${filePath.replace(/\\/g, '/')}" />
-</body></html>`
-
-    // The page is written to a file rather than loaded from a data: URL. A
-    // data: URL is an opaque origin, so the file:// image is blocked and the
-    // printer spits out a blank sheet.
-    const pagePath = join(app.getPath('temp'), `fotobox-print-${process.pid}.html`)
-    writeFileSync(pagePath, html, 'utf-8')
-
-    const cleanUp = (): void => {
-      printWindow.close()
-      try {
-        unlinkSync(pagePath)
-      } catch {
-        // Losing a temp file is not worth failing the print over
-      }
+  // Lets the operator iterate on printer settings without shooting photos
+  ipcMain.handle('photos:testPrint', async (): Promise<{ ok: boolean; message: string }> => {
+    const newest = newestPhotoPath()
+    if (!newest) {
+      return { ok: false, message: 'No photos yet — take one first, then test.' }
     }
-
-    try {
-      await printWindow.loadFile(pagePath)
-
-      // naturalWidth, not complete: a blocked or broken image also reports
-      // complete, which is exactly how blank sheets got printed.
-      const rendered = (await printWindow.webContents.executeJavaScript(`
-        new Promise((resolve) => {
-          const img = document.querySelector('img');
-          const done = () => resolve(img.naturalWidth > 0);
-          if (img.complete) return done();
-          img.onload = done;
-          img.onerror = done;
-          setTimeout(done, 5000);
-        })
-      `)) as boolean
-
-      if (!rendered) {
-        console.error(`[print] ${filePath} did not render; refusing to waste paper`)
-        cleanUp()
-        return false
-      }
-    } catch (err) {
-      console.error('[print] preparing the page failed:', (err as Error).message)
-      cleanUp()
-      return false
-    }
-
-    const size = PRINT_SIZES[settings.printSize] ?? PRINT_SIZES['4x6']
-    const photo = nativeImage.createFromPath(filePath).getSize()
-
-    // Rotate the sheet rather than letterbox: a landscape photo on portrait
-    // media would otherwise print small with white bands around it.
-    const square = size.widthIn === size.heightIn
-    const landscape = !square && photo.width > photo.height === size.heightIn > size.widthIn
-
-    return new Promise<boolean>((resolve) => {
-      printWindow.webContents.print(
-        {
-          silent: true,
-          deviceName: printerName,
-          printBackground: true,
-          margins: { marginType: 'none' },
-          landscape,
-          pageSize: {
-            width: Math.round(size.widthIn * MICRONS_PER_INCH),
-            height: Math.round(size.heightIn * MICRONS_PER_INCH)
-          }
-        },
-        (success, failureReason) => {
-          if (!success) {
-            console.error('[print] failed:', failureReason)
-          }
-          cleanUp()
-          resolve(success)
-        }
-      )
-    })
+    return printPhotoFile(newest)
   })
 
   // --- Share IPC handler ---
