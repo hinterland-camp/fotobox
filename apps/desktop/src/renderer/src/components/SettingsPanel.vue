@@ -168,6 +168,19 @@ async function onServerUrlChange(e: Event): Promise<void> {
   await saveSetting('serverUrl', value)
 }
 
+const connectionTest = ref<{ ok: boolean; message: string } | null>(null)
+const testingConnection = ref(false)
+
+async function onTestConnection(): Promise<void> {
+  testingConnection.value = true
+  connectionTest.value = null
+  try {
+    connectionTest.value = await window.api.photos.testConnection()
+  } finally {
+    testingConnection.value = false
+  }
+}
+
 async function onServerTokenChange(e: Event): Promise<void> {
   const value = (e.target as HTMLInputElement).value
   serverToken.value = value
@@ -342,6 +355,22 @@ async function onCountdownChange(e: Event): Promise<void> {
           />
           <p class="mt-2 text-sm text-zinc-600">
             Must match NUXT_UPLOAD_TOKEN on the server, or uploads are rejected.
+          </p>
+
+          <button
+            class="mt-4 h-14 w-full rounded-xl bg-zinc-700/60 px-6 text-base font-medium text-white transition-colors active:bg-zinc-600 disabled:opacity-50"
+            :disabled="testingConnection"
+            @click="onTestConnection"
+          >
+            {{ testingConnection ? 'Testing...' : 'Test connection' }}
+          </button>
+
+          <p
+            v-if="connectionTest"
+            class="mt-3 text-sm"
+            :class="connectionTest.ok ? 'text-green-400' : 'text-red-400'"
+          >
+            {{ connectionTest.message }}
           </p>
         </section>
 

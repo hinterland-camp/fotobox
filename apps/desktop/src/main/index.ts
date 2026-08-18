@@ -409,10 +409,63 @@ app.whenReady().then(async () => {
         body: formData
       })
 
-      if (!response.ok) return null
+      if (!response.ok) {
+        console.error(`[upload] ${url} responded ${response.status} ${response.statusText}`)
+        return null
+      }
 
       const result = (await response.json()) as { id: string; downloadUrl: string }
       return result
+    }
+  )
+
+  ipcMain.handle(
+    'photos:testConnection',
+    async (): Promise<{ ok: boolean; message: string }> => {
+      const settings = loadSettings()
+      if (!settings.serverUrl) {
+        return { ok: false, message: 'No server URL configured.' }
+      }
+
+      const url = `${settings.serverUrl.replace(/\/$/, '')}/api/photos`
+      try {
+        // Deliberately empty body: the server checks the token before it looks
+        // for a file, so a 400 means the URL and token are both good without
+        // leaving a stray photo behind.
+        const response = await net.fetch(url, {
+          method: 'POST',
+          headers: settings.serverToken
+            ? { Authorization: `Bearer ${settings.serverToken}` }
+            : undefined,
+          body: new FormData()
+        })
+
+        switch (response.status) {
+          case 400:
+            return { ok: true, message: 'Connected. Server URL and upload token are correct.' }
+          case 401:
+            return {
+              ok: false,
+              message: 'Server rejected the upload token (401). It must match NUXT_UPLOAD_TOKEN on the server.'
+            }
+          case 503:
+            return {
+              ok: false,
+              message: 'Server has no upload token configured (503). Set NUXT_UPLOAD_TOKEN there.'
+            }
+          case 404:
+            return {
+              ok: false,
+              message: 'No upload endpoint at this address (404). Check the server URL.'
+            }
+          default:
+            return response.ok
+              ? { ok: true, message: 'Connected.' }
+              : { ok: false, message: `Server responded ${response.status} ${response.statusText}.` }
+        }
+      } catch (err) {
+        return { ok: false, message: `Cannot reach the server: ${(err as Error).message}` }
+      }
     }
   )
 
@@ -457,7 +510,10 @@ app.whenReady().then(async () => {
             : undefined,
           body: formData
         })
-        if (!response.ok) return null
+        if (!response.ok) {
+          console.error(`[upload retry] ${url} responded ${response.status}`)
+          return null
+        }
         const result = (await response.json()) as { id: string; downloadUrl: string }
         removeFromUploadQueue(filePath)
         return result

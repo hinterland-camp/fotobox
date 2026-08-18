@@ -22,6 +22,7 @@ interface PhotosAPI {
   print(filePath: string): Promise<boolean>
   share(filePath: string): Promise<boolean>
   upload(filePath: string): Promise<UploadResult | null>
+  testConnection(): Promise<{ ok: boolean; message: string }>
 }
 
 interface QueueItem {

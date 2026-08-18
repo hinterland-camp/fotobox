@@ -21,7 +21,9 @@ const api = {
     upload: (
       filePath: string
     ): Promise<{ id: string; downloadUrl: string } | null> =>
-      ipcRenderer.invoke('photos:upload', filePath)
+      ipcRenderer.invoke('photos:upload', filePath),
+    testConnection: (): Promise<{ ok: boolean; message: string }> =>
+      ipcRenderer.invoke('photos:testConnection')
   },
   uploadQueue: {
     getAll: (): Promise<Array<{ filePath: string; addedAt: string }>> =>
