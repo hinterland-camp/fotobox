@@ -82,6 +82,7 @@ interface Settings {
   printerName: string
   printSize: string
   printFit: string
+  printRotation: string
   serverUrl: string
   serverToken: string
   countdownSeconds: number
@@ -96,6 +97,7 @@ const defaultSettings: Settings = {
   printerName: '',
   printSize: 'printer',
   printFit: 'contain',
+  printRotation: 'auto',
   serverUrl: '',
   serverToken: '',
   countdownSeconds: 6,
@@ -182,15 +184,40 @@ async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message:
   // and crops whatever falls outside it.
   const fit = settings.printFit === 'cover' ? 'cover' : 'contain'
 
+  const photo = nativeImage.createFromPath(filePath).getSize()
+  const size = PRINT_SIZES[settings.printSize]
+  // With the printer's own paper we cannot know its shape; dye-sub media feeds
+  // portrait, so assume that.
+  const pagePortrait = size ? size.heightIn > size.widthIn : true
+
+  // Rotate the photo ourselves rather than ask the driver for a landscape
+  // page: that flag is routinely ignored, which left a landscape photo filling
+  // half a portrait sheet with white bands around it.
+  const rotation =
+    settings.printRotation === 'auto'
+      ? photo.width > photo.height && pagePortrait
+        ? 90
+        : 0
+      : Number(settings.printRotation) || 0
+
+  // A quarter turn swaps which page edge the photo's width runs along
+  const quarterTurned = rotation === 90 || rotation === 270
+
   const html = `<!DOCTYPE html>
 <html><head><style>
   * { margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; }
-  body { display: flex; align-items: center; justify-content: center; }
-  img { width: 100%; height: 100%; object-fit: ${fit}; display: block; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  .stage { position: relative; width: 100%; height: 100%; }
+  img {
+    position: absolute; top: 50%; left: 50%;
+    width: ${quarterTurned ? '100vh' : '100vw'};
+    height: ${quarterTurned ? '100vw' : '100vh'};
+    object-fit: ${fit};
+    transform: translate(-50%, -50%) rotate(${rotation}deg);
+  }
   @page { margin: 0; }
 </style></head><body>
-<img src="file://${filePath.replace(/\\/g, '/')}" />
+<div class="stage"><img src="file://${filePath.replace(/\\/g, '/')}" /></div>
 </body></html>`
 
   // Written to a file rather than loaded from a data: URL: a data: URL is an
@@ -235,21 +262,11 @@ async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message:
     return { ok: false, message: lastPrintError }
   }
 
-  const photo = nativeImage.createFromPath(filePath).getSize()
-  const size = PRINT_SIZES[settings.printSize]
-
-  // Rotate the sheet rather than letterbox: a landscape photo on portrait
-  // media would otherwise print small with white bands around it.
-  const pagePortrait = size ? size.heightIn > size.widthIn : photo.height >= photo.width
-  const square = size ? size.widthIn === size.heightIn : false
-  const landscape = !square && photo.width > photo.height === pagePortrait
-
   const base: Electron.WebContentsPrintOptions = {
     silent: true,
     deviceName: settings.printerName,
     printBackground: true,
-    margins: { marginType: 'none' },
-    landscape
+    margins: { marginType: 'none' }
   }
 
   // The QW410 prints whatever roll is loaded, and drivers are fussy about a
@@ -272,7 +289,7 @@ async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message:
   attempts.push({ label: "the printer's paper", options: base })
   attempts.push({
     label: 'driver defaults',
-    options: { silent: true, deviceName: settings.printerName, landscape }
+    options: { silent: true, deviceName: settings.printerName }
   })
 
   const failures: string[] = []
