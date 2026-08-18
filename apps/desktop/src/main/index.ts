@@ -18,6 +18,7 @@ import {
   readdirSync,
   readFileSync,
   statSync,
+  unlinkSync,
   writeFileSync
 } from 'fs'
 import { basename, join } from 'path'
@@ -321,6 +322,7 @@ app.whenReady().then(async () => {
     const settings = loadSettings()
     const printerName = settings.printerName
     if (!printerName) return false
+    if (!existsSync(filePath)) return false
 
     // Create a hidden window to render and print the photo
     const printWindow = new BrowserWindow({
@@ -333,31 +335,69 @@ app.whenReady().then(async () => {
     const html = `<!DOCTYPE html>
 <html><head><style>
   * { margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
   body { display: flex; align-items: center; justify-content: center; }
-  img { max-width: 100%; max-height: 100vh; }
-  @media print { @page { margin: 0; } body { margin: 0; } img { max-width: 100%; max-height: 100%; } }
+  img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  @media print { @page { margin: 0; } }
 </style></head><body>
 <img src="file://${filePath.replace(/\\/g, '/')}" />
 </body></html>`
 
-    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    // The page is written to a file rather than loaded from a data: URL. A
+    // data: URL is an opaque origin, so the file:// image is blocked and the
+    // printer spits out a blank sheet.
+    const pagePath = join(app.getPath('temp'), `fotobox-print-${process.pid}.html`)
+    writeFileSync(pagePath, html, 'utf-8')
 
-    // Wait for the image to load
-    await printWindow.webContents.executeJavaScript(`
-      new Promise((resolve) => {
-        const img = document.querySelector('img');
-        if (img.complete) resolve(); else img.onload = resolve;
-      })
-    `)
+    const cleanUp = (): void => {
+      printWindow.close()
+      try {
+        unlinkSync(pagePath)
+      } catch {
+        // Losing a temp file is not worth failing the print over
+      }
+    }
+
+    try {
+      await printWindow.loadFile(pagePath)
+
+      // naturalWidth, not complete: a blocked or broken image also reports
+      // complete, which is exactly how blank sheets got printed.
+      const rendered = (await printWindow.webContents.executeJavaScript(`
+        new Promise((resolve) => {
+          const img = document.querySelector('img');
+          const done = () => resolve(img.naturalWidth > 0);
+          if (img.complete) return done();
+          img.onload = done;
+          img.onerror = done;
+          setTimeout(done, 5000);
+        })
+      `)) as boolean
+
+      if (!rendered) {
+        console.error(`[print] ${filePath} did not render; refusing to waste paper`)
+        cleanUp()
+        return false
+      }
+    } catch (err) {
+      console.error('[print] preparing the page failed:', (err as Error).message)
+      cleanUp()
+      return false
+    }
 
     return new Promise<boolean>((resolve) => {
       printWindow.webContents.print(
-        { silent: true, deviceName: printerName },
+        {
+          silent: true,
+          deviceName: printerName,
+          printBackground: true,
+          margins: { marginType: 'none' }
+        },
         (success, failureReason) => {
-          printWindow.close()
           if (!success) {
-            console.error('Print failed:', failureReason)
+            console.error('[print] failed:', failureReason)
           }
+          cleanUp()
           resolve(success)
         }
       )
