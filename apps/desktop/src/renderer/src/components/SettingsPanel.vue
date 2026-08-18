@@ -66,6 +66,7 @@ const framePath = ref('')
 const frameDataUrl = ref('')
 const printerName = ref('')
 const printSize = ref('printer')
+const printFit = ref('contain')
 const serverUrl = ref('')
 const serverToken = ref('')
 const password = ref('')
@@ -84,6 +85,7 @@ async function loadSettings(): Promise<void> {
   framePath.value = (settings.framePath as string) || ''
   printerName.value = (settings.printerName as string) || ''
   printSize.value = (settings.printSize as string) || 'printer'
+  printFit.value = (settings.printFit as string) || 'contain'
   serverUrl.value = (settings.serverUrl as string) || ''
   serverToken.value = (settings.serverToken as string) || ''
   password.value = (settings.password as string) || ''
@@ -179,6 +181,17 @@ async function onPrintSizeChange(e: Event): Promise<void> {
   const value = (e.target as HTMLSelectElement).value
   printSize.value = value
   await saveSetting('printSize', value)
+}
+
+const printFits = [
+  { value: 'contain', label: 'Whole photo (scaled to fit)' },
+  { value: 'cover', label: 'Fill the sheet (crops the edges)' }
+]
+
+async function onPrintFitChange(e: Event): Promise<void> {
+  const value = (e.target as HTMLSelectElement).value
+  printFit.value = value
+  await saveSetting('printFit', value)
 }
 
 const printTest = ref<{ ok: boolean; message: string } | null>(null)
@@ -372,8 +385,25 @@ async function onCountdownChange(e: Event): Promise<void> {
           </select>
           <p class="mt-2 text-sm text-zinc-600">
             The QW410 prints whatever roll is loaded, so its own setting is
-            usually right. Photos are printed edge to edge, so anything outside
-            the sheet's shape is cropped.
+            usually right.
+          </p>
+
+          <label class="mt-4 mb-2 block text-sm text-zinc-400" for="settings-print-fit">
+            How the photo sits on the page
+          </label>
+          <select
+            id="settings-print-fit"
+            class="h-14 w-full appearance-none rounded-xl border border-zinc-700/50 bg-zinc-800 px-4 text-base text-white outline-none transition-colors focus:border-blue-500"
+            :value="printFit"
+            @change="onPrintFitChange"
+          >
+            <option v-for="fit in printFits" :key="fit.value" :value="fit.value">
+              {{ fit.label }}
+            </option>
+          </select>
+          <p class="mt-2 text-sm text-zinc-600">
+            Scaling to fit keeps the whole photo but can leave white edges when
+            its shape differs from the paper.
           </p>
 
           <button

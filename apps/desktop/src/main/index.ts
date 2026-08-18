@@ -81,6 +81,7 @@ interface Settings {
   framePath: string
   printerName: string
   printSize: string
+  printFit: string
   serverUrl: string
   serverToken: string
   countdownSeconds: number
@@ -94,6 +95,7 @@ const defaultSettings: Settings = {
   framePath: '',
   printerName: '',
   printSize: 'printer',
+  printFit: 'contain',
   serverUrl: '',
   serverToken: '',
   countdownSeconds: 6,
@@ -176,12 +178,16 @@ async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message:
     webPreferences: { sandbox: true }
   })
 
+  // 'contain' scales the whole photo onto the sheet; 'cover' fills the sheet
+  // and crops whatever falls outside it.
+  const fit = settings.printFit === 'cover' ? 'cover' : 'contain'
+
   const html = `<!DOCTYPE html>
 <html><head><style>
   * { margin: 0; padding: 0; }
   html, body { width: 100%; height: 100%; }
   body { display: flex; align-items: center; justify-content: center; }
-  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  img { width: 100%; height: 100%; object-fit: ${fit}; display: block; }
   @page { margin: 0; }
 </style></head><body>
 <img src="file://${filePath.replace(/\\/g, '/')}" />
