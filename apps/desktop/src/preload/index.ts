@@ -41,6 +41,12 @@ const api = {
   camera: {
     getAccessStatus: (): Promise<string> => ipcRenderer.invoke('camera:getAccessStatus')
   },
+  frame: {
+    select: (): Promise<{ path: string; dataUrl: string } | null> =>
+      ipcRenderer.invoke('frame:select'),
+    getDataUrl: (): Promise<string | null> => ipcRenderer.invoke('frame:getDataUrl'),
+    clear: (): Promise<void> => ipcRenderer.invoke('frame:clear')
+  },
   updates: {
     getState: (): Promise<unknown> => ipcRenderer.invoke('updates:getState'),
     check: (): Promise<unknown> => ipcRenderer.invoke('updates:check'),

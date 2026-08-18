@@ -14,6 +14,7 @@ const currentCount = ref(0)
 const showFlash = ref(false)
 const animKey = ref(0)
 let timer: ReturnType<typeof setInterval> | null = null
+let flashTimer: ReturnType<typeof setTimeout> | null = null
 
 function startCountdown(): void {
   stopCountdown()
@@ -34,13 +35,20 @@ function stopCountdown(): void {
     clearInterval(timer)
     timer = null
   }
+  if (flashTimer) {
+    clearTimeout(flashTimer)
+    flashTimer = null
+  }
+  showFlash.value = false
 }
 
 function triggerFlash(): void {
   showFlash.value = true
-  setTimeout(() => {
+  flashTimer = setTimeout(() => {
     showFlash.value = false
-    emit('complete')
+    flashTimer = null
+    // A cancel landing inside the flash must not still take the photo
+    if (props.active) emit('complete')
   }, 300)
 }
 

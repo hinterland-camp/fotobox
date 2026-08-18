@@ -49,6 +49,12 @@ interface CameraAPI {
   getAccessStatus(): Promise<string>
 }
 
+interface FrameAPI {
+  select(): Promise<{ path: string; dataUrl: string } | null>
+  getDataUrl(): Promise<string | null>
+  clear(): Promise<void>
+}
+
 type UpdateStatus =
   | 'unsupported'
   | 'idle'
@@ -82,6 +88,7 @@ interface FotoboxAPI {
   uploadQueue: UploadQueueAPI
   printers: PrintersAPI
   camera: CameraAPI
+  frame: FrameAPI
   updates: UpdatesAPI
 }
 

@@ -63,7 +63,7 @@ const emit = defineEmits<{
 // Settings state
 const cameraDeviceId = ref('')
 const framePath = ref('')
-const framePreviewUrl = ref('')
+const frameDataUrl = ref('')
 const printerName = ref('')
 const serverUrl = ref('')
 const serverToken = ref('')
@@ -87,9 +87,7 @@ async function loadSettings(): Promise<void> {
   password.value = (settings.password as string) || ''
   countdownSeconds.value = (settings.countdownSeconds as number) || 3
 
-  if (framePath.value) {
-    framePreviewUrl.value = `file://${framePath.value}`
-  }
+  frameDataUrl.value = (await window.api.frame.getDataUrl()) || ''
 }
 
 async function loadCameras(): Promise<void> {
@@ -144,27 +142,18 @@ async function onCameraChange(e: Event): Promise<void> {
 }
 
 async function onFrameSelect(): Promise<void> {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/png'
-  input.onchange = async () => {
-    const file = input.files?.[0]
-    if (!file) return
-    // Use the file path from the electron file object
-    const path = (file as File & { path?: string }).path
-    if (path) {
-      framePath.value = path
-      framePreviewUrl.value = `file://${path}`
-      await saveSetting('framePath', path)
-    }
-  }
-  input.click()
+  // A native dialog rather than an <input type="file">: Electron 32 removed
+  // File.path, so the browser picker could not tell us where the file lives.
+  const selected = await window.api.frame.select()
+  if (!selected) return
+  framePath.value = selected.path
+  frameDataUrl.value = selected.dataUrl
 }
 
 async function onClearFrame(): Promise<void> {
   framePath.value = ''
-  framePreviewUrl.value = ''
-  await saveSetting('framePath', '')
+  frameDataUrl.value = ''
+  await window.api.frame.clear()
 }
 
 async function onPrinterChange(e: Event): Promise<void> {
@@ -254,9 +243,16 @@ async function onCountdownChange(e: Event): Promise<void> {
           <!-- Live preview of the selected camera -->
           <div
             v-if="cameras.length > 0"
-            class="mt-4 h-56 overflow-hidden rounded-xl border border-zinc-800"
+            class="relative mt-4 h-56 overflow-hidden rounded-xl border border-zinc-800"
           >
             <CameraPreview :camera-device-id="cameraDeviceId" />
+            <!-- Same overlay the photobooth draws, so this is what guests get -->
+            <img
+              v-if="frameDataUrl"
+              :src="frameDataUrl"
+              alt=""
+              class="pointer-events-none absolute inset-0 h-full w-full object-fill"
+            />
           </div>
         </section>
 
@@ -285,9 +281,9 @@ async function onCountdownChange(e: Event): Promise<void> {
           <p v-if="framePath" class="mt-3 truncate text-sm text-zinc-600">
             {{ framePath }}
           </p>
-          <div v-if="framePreviewUrl" class="mt-4">
+          <div v-if="frameDataUrl" class="mt-4">
             <img
-              :src="framePreviewUrl"
+              :src="frameDataUrl"
               alt="Frame preview"
               class="max-h-48 rounded-xl border border-zinc-800"
             />

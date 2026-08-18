@@ -233,6 +233,56 @@ app.whenReady().then(async () => {
     saveSettings(settings)
   })
 
+  // --- Frame overlay IPC handlers ---
+
+  // The renderer runs on http:// in dev and file:// when packaged, and a
+  // file:// image would either be blocked or taint the capture canvas. Handing
+  // over a data URL sidesteps both.
+  function frameToDataUrl(framePath: string): string | null {
+    if (!framePath || !existsSync(framePath)) return null
+    return `data:image/png;base64,${readFileSync(framePath).toString('base64')}`
+  }
+
+  ipcMain.handle(
+    'frame:select',
+    async (): Promise<{ path: string; dataUrl: string } | null> => {
+      const win = BrowserWindow.getAllWindows()[0]
+      const options = {
+        title: 'Select frame overlay',
+        filters: [{ name: 'PNG image', extensions: ['png'] }],
+        properties: ['openFile' as const]
+      }
+      const result = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options)
+
+      const source = result.canceled ? undefined : result.filePaths[0]
+      if (!source) return null
+
+      // Keep our own copy: the frame must survive the original being moved or
+      // the USB stick it came from being pulled out at the event.
+      const stored = join(app.getPath('userData'), 'frame.png')
+      copyFileSync(source, stored)
+
+      const settings = loadSettings()
+      settings.framePath = stored
+      saveSettings(settings)
+
+      const dataUrl = frameToDataUrl(stored)
+      return dataUrl ? { path: stored, dataUrl } : null
+    }
+  )
+
+  ipcMain.handle('frame:getDataUrl', (): string | null =>
+    frameToDataUrl(loadSettings().framePath)
+  )
+
+  ipcMain.handle('frame:clear', (): void => {
+    const settings = loadSettings()
+    settings.framePath = ''
+    saveSettings(settings)
+  })
+
   // --- Photos IPC handler ---
 
   ipcMain.handle('photos:save', async (_event, buffer: ArrayBuffer): Promise<string> => {

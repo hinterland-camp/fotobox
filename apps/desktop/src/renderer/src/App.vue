@@ -18,6 +18,7 @@ const showPasswordDialog = ref(false)
 const settingsLoaded = ref(false)
 const cameraDeviceId = ref('')
 const framePath = ref('')
+const frameDataUrl = ref('')
 const countdownSeconds = ref(3)
 const autoReturnSeconds = ref(30)
 const printerName = ref('')
@@ -30,6 +31,7 @@ async function loadPhotoboothSettings(): Promise<void> {
     const settings = (await window.api.settings.getAll()) as Record<string, unknown>
     cameraDeviceId.value = (settings.cameraDeviceId as string) || ''
     framePath.value = (settings.framePath as string) || ''
+    frameDataUrl.value = (await window.api.frame.getDataUrl()) || ''
     countdownSeconds.value = (settings.countdownSeconds as number) || 3
     autoReturnSeconds.value = (settings.autoReturnSeconds as number) || 30
     printerName.value = (settings.printerName as string) || ''
@@ -42,8 +44,9 @@ async function loadPhotoboothSettings(): Promise<void> {
 }
 
 function handlePhotoboothClick(): void {
-  if (countdownActive.value || showPasswordDialog.value) return
-  countdownActive.value = true
+  if (showPasswordDialog.value) return
+  // Tapping again during the countdown cancels it — guests change their mind
+  countdownActive.value = !countdownActive.value
 }
 
 function capturePhoto(): string | null {
@@ -81,8 +84,8 @@ async function compositePhoto(photoDataUrl: string): Promise<CompositedPhoto> {
   ctx.drawImage(photo, 0, 0)
 
   // Draw the frame overlay on top if configured
-  if (framePath.value) {
-    const frame = await loadImage(`file://${framePath.value}`)
+  if (frameDataUrl.value) {
+    const frame = await loadImage(frameDataUrl.value)
     ctx.drawImage(frame, 0, 0, canvas.width, canvas.height)
   }
 
@@ -276,10 +279,10 @@ async function returnToPhotobooth(): Promise<void> {
 
       <!-- Frame overlay -->
       <img
-        v-if="framePath"
-        :src="`file://${framePath}`"
+        v-if="frameDataUrl"
+        :src="frameDataUrl"
         alt=""
-        class="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        class="pointer-events-none absolute inset-0 h-full w-full object-fill"
       />
 
       <!-- Bottom gradient for text readability -->
@@ -287,9 +290,19 @@ async function returnToPhotobooth(): Promise<void> {
         class="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/60 to-transparent"
       />
 
+      <!-- Cancel hint while the countdown runs -->
+      <div
+        v-if="countdownActive"
+        class="pointer-events-none absolute inset-x-0 bottom-10 z-50 flex justify-center"
+      >
+        <p class="text-lg font-medium tracking-wide text-white/70 drop-shadow-lg">
+          Tap to cancel
+        </p>
+      </div>
+
       <!-- Tap prompt -->
       <div
-        v-if="!countdownActive"
+        v-else
         class="absolute inset-x-0 bottom-10 flex justify-center"
       >
         <div class="animate-float flex flex-col items-center gap-3">
