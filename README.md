@@ -27,8 +27,12 @@ configures the camera, frame PNG, printer, server URL and upload token.
 
 ## Web app deployment
 
-Deploy with `docker-compose.yml` (built for Coolify). Both volumes must persist —
-losing them loses every guest's photo and download link.
+Deploy with `docker-compose.yml` or the root `Dockerfile`. **The build context
+must be the repo root** — the web app is built from the workspace, so a context
+of `apps/web` cannot see `packages/shared` or the lockfile.
+
+Both volumes must persist — losing them loses every guest's photo and download
+link.
 
 | Variable | Purpose |
 | --- | --- |
