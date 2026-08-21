@@ -1,16 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import CameraPreview from './components/CameraPreview.vue'
 import CountdownOverlay from './components/CountdownOverlay.vue'
 import PasswordDialog from './components/PasswordDialog.vue'
 import ResultScreen from './components/ResultScreen.vue'
 import PhotoGallery from './components/PhotoGallery.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
-
-interface CompositedPhoto {
-  dataUrl: string
-  blob: Blob
-}
+import { coverCrop, EMPTY_FRAME, type FrameConfig } from '../../common/frames'
+import { layoutFor, loadImage, renderQrCode, renderSheet } from './lib/sheets'
 
 type Screen = 'photobooth' | 'result' | 'settings'
 
@@ -19,23 +16,43 @@ const showPasswordDialog = ref(false)
 const showGallery = ref(false)
 const settingsLoaded = ref(false)
 const cameraDeviceId = ref('')
-const frameDataUrl = ref('')
 const countdownSeconds = ref(3)
 const autoReturnSeconds = ref(30)
 const printerName = ref('')
 const countdownActive = ref(false)
-const capturedPhotoDataUrl = ref<string | null>(null)
 const cameraPreviewRef = ref<InstanceType<typeof CameraPreview> | null>(null)
+
+// Every shot is rendered twice: the sheet that goes on paper carries the
+// guest's download QR, the lighter artwork is what they take home and post.
+const printFrame = ref<FrameConfig>(EMPTY_FRAME)
+const shareFrame = ref<FrameConfig>(EMPTY_FRAME)
+let printFrameImage: HTMLImageElement | null = null
+let shareFrameImage: HTMLImageElement | null = null
+
+async function loadFrames(): Promise<void> {
+  const frames = await window.api.frames.getAll()
+  printFrame.value = frames.print
+  shareFrame.value = frames.share
+
+  // Decoded once at start-up: these are multi-megabyte PNGs, and decoding one
+  // between the shutter and the result screen is a visible stall.
+  const [printUrl, shareUrl] = await Promise.all([
+    window.api.frames.getDataUrl('print'),
+    window.api.frames.getDataUrl('share')
+  ])
+  printFrameImage = printUrl ? await loadImage(printUrl) : null
+  shareFrameImage = shareUrl ? await loadImage(shareUrl) : null
+}
 
 async function loadPhotoboothSettings(): Promise<void> {
   try {
     const settings = (await window.api.settings.getAll()) as Record<string, unknown>
     cameraDeviceId.value = (settings.cameraDeviceId as string) || ''
-    frameDataUrl.value = (await window.api.frame.getDataUrl()) || ''
     countdownSeconds.value = (settings.countdownSeconds as number) || 3
     autoReturnSeconds.value = (settings.autoReturnSeconds as number) || 30
     printerName.value = (settings.printerName as string) || ''
     serverUrl.value = (settings.serverUrl as string) || ''
+    await loadFrames()
   } finally {
     // Mount the camera only once the configured device id is known, so the
     // preview never starts on the default camera and then has to switch.
@@ -43,84 +60,70 @@ async function loadPhotoboothSettings(): Promise<void> {
   }
 }
 
+/**
+ * The size every shot is taken at. The print sheet leads, because paper is the
+ * unforgiving one; the share artwork cuts its own window from the same frame.
+ * Falling back to the camera's own size keeps a booth with no artwork working.
+ */
+const captureSize = computed(() => {
+  for (const frame of [printFrame.value, shareFrame.value]) {
+    if (frame.path && frame.photo.width > 0 && frame.photo.height > 0) {
+      return { width: frame.photo.width, height: frame.photo.height }
+    }
+  }
+  return null
+})
+
+// Guests see a plain camera, never the artwork — the frame is a reveal on the
+// result screen. All the preview borrows from the layout is its shape, so the
+// crop nobody can see coming is at least the crop they are lining up for.
+//
+// Sized with min() rather than aspect-ratio: clamping one axis of an
+// aspect-ratio box leaves the other where it was, which stretches the preview
+// on a screen narrower than the shot. This is `contain`, on any screen.
+const previewShapeStyle = computed(() => {
+  const size = captureSize.value
+  if (!size) return {}
+  const { width, height } = size
+  return {
+    width: `min(100vw, calc(100vh * ${width} / ${height}))`,
+    height: `min(100vh, calc(100vw * ${height} / ${width}))`
+  }
+})
+
 function handlePhotoboothClick(): void {
   if (showPasswordDialog.value || showGallery.value) return
   // Tapping again during the countdown cancels it — guests change their mind
   countdownActive.value = !countdownActive.value
 }
 
-// The paper is 10x15cm (4x6") at 300 dpi, so the photo is captured at exactly
-// the sheet's shape and pixel count. One image serves capture, upload and
-// print without any late re-fitting.
-const PRINT_WIDTH = 1800
-const PRINT_HEIGHT = 1200
-
-function capturePhoto(): string | null {
+/**
+ * Shoots at exactly the size the artwork's photo window expects, centre-cropped
+ * from the camera rather than squashed. Laying the shot into the sheet is then
+ * a straight copy, with no late re-fitting to soften it.
+ */
+function capturePhoto(): HTMLCanvasElement | null {
   const video = cameraPreviewRef.value?.videoRef
   if (!video || video.readyState < video.HAVE_CURRENT_DATA) return null
+  if (video.videoWidth === 0 || video.videoHeight === 0) return null
+
+  const target = captureSize.value ?? { width: video.videoWidth, height: video.videoHeight }
 
   const canvas = document.createElement('canvas')
-  canvas.width = PRINT_WIDTH
-  canvas.height = PRINT_HEIGHT
+  canvas.width = target.width
+  canvas.height = target.height
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
 
-  // Centre-crop the camera frame to the paper's 3:2 before scaling, so the
-  // photo is never stretched — just trimmed like a viewfinder.
-  const target = PRINT_WIDTH / PRINT_HEIGHT
-  const vw = video.videoWidth
-  const vh = video.videoHeight
-  let sx = 0
-  let sy = 0
-  let sw = vw
-  let sh = vh
-  if (vw / vh > target) {
-    sw = vh * target
-    sx = (vw - sw) / 2
-  } else {
-    sh = vw / target
-    sy = (vh - sh) / 2
-  }
-
-  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, PRINT_WIDTH, PRINT_HEIGHT)
-  return canvas.toDataURL('image/png')
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error(`Failed to load image: ${src.slice(0, 100)}`))
-    img.src = src
+  ctx.imageSmoothingQuality = 'high'
+  const crop = coverCrop(video.videoWidth, video.videoHeight, {
+    x: 0,
+    y: 0,
+    width: target.width,
+    height: target.height
   })
-}
-
-async function compositePhoto(photoDataUrl: string): Promise<CompositedPhoto> {
-  const photo = await loadImage(photoDataUrl)
-
-  const canvas = document.createElement('canvas')
-  canvas.width = photo.naturalWidth
-  canvas.height = photo.naturalHeight
-  const ctx = canvas.getContext('2d')!
-
-  // Draw the captured photo
-  ctx.drawImage(photo, 0, 0)
-
-  // Draw the frame overlay on top if configured
-  if (frameDataUrl.value) {
-    const frame = await loadImage(frameDataUrl.value)
-    ctx.drawImage(frame, 0, 0, canvas.width, canvas.height)
-  }
-
-  const dataUrl = canvas.toDataURL('image/png')
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('Failed to create blob'))),
-      'image/png'
-    )
-  })
-
-  return { dataUrl, blob }
+  ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, target.width, target.height)
+  return canvas
 }
 
 interface UploadResult {
@@ -130,7 +133,7 @@ interface UploadResult {
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'failed'
 
-const compositedPhoto = ref<CompositedPhoto | null>(null)
+const sharePhotoDataUrl = ref<string | null>(null)
 const savedPhotoPath = ref<string | null>(null)
 const uploadResult = ref<UploadResult | null>(null)
 const uploadStatus = ref<UploadStatus>('idle')
@@ -143,9 +146,20 @@ const printToast = ref<string | null>(null)
 let printToastTimer: ReturnType<typeof setTimeout> | null = null
 let retryIntervalId: ReturnType<typeof setInterval> | null = null
 
+let rawCapture: HTMLCanvasElement | null = null
+let uploadInFlight: Promise<void> | null = null
+// The sheet is rendered on demand and cached against the code it was given, so
+// a second copy is instant but a first print that beat the upload is redone
+// once the guest's own link exists.
+let printSheet: { path: string; qrUrl: string | null } | null = null
+
 async function savePhoto(blob: Blob): Promise<string> {
   const buffer = await blob.arrayBuffer()
   return window.api.photos.save(buffer)
+}
+
+function fullDownloadUrl(result: UploadResult): string {
+  return serverUrl.value.replace(/\/$/, '') + result.downloadUrl
 }
 
 async function uploadPhoto(filePath: string): Promise<void> {
@@ -184,23 +198,68 @@ async function retryQueuedUploads(): Promise<void> {
 }
 
 async function handleCountdownComplete(): Promise<void> {
-  const dataUrl = capturePhoto()
-  if (dataUrl) {
-    capturedPhotoDataUrl.value = dataUrl
-    const result = await compositePhoto(dataUrl)
-    compositedPhoto.value = result
+  const capture = capturePhoto()
+  if (capture) {
+    rawCapture = capture
 
-    // Save locally immediately after compositing
-    const filePath = await savePhoto(result.blob)
+    // The guest's copy is what gets saved and uploaded; the printed sheet is
+    // only rendered if someone actually asks for paper.
+    const share = await renderSheet(
+      layoutFor(shareFrame.value, capture),
+      capture,
+      shareFrameImage,
+      null
+    )
+    sharePhotoDataUrl.value = share.dataUrl
+
+    const filePath = await savePhoto(share.blob)
     savedPhotoPath.value = filePath
 
     // Upload silently in the background (no await — non-blocking)
-    uploadPhoto(filePath)
+    uploadInFlight = uploadPhoto(filePath)
 
     // Transition to result screen
     currentScreen.value = 'result'
   }
   countdownActive.value = false
+}
+
+// Long enough to cover a slow event Wi-Fi, short enough that a guest waiting
+// at the printer does not think the booth has hung.
+const PRINT_UPLOAD_WAIT_MS = 8000
+
+/**
+ * The link the printed QR should point at, or null when the photo has not
+ * reached the server yet — in which case the artwork keeps the designer's own
+ * code rather than getting a dead one stamped over it.
+ */
+async function downloadUrlForPrint(): Promise<string | null> {
+  if (uploadResult.value) return fullDownloadUrl(uploadResult.value)
+  if (uploadInFlight && uploadStatus.value === 'uploading') {
+    await Promise.race([
+      uploadInFlight,
+      new Promise((resolve) => setTimeout(resolve, PRINT_UPLOAD_WAIT_MS))
+    ])
+  }
+  return uploadResult.value ? fullDownloadUrl(uploadResult.value) : null
+}
+
+/** Renders and saves the sheet, reusing the last one when nothing has changed. */
+async function preparePrintSheet(): Promise<{ path: string; qrUrl: string | null } | null> {
+  const capture = rawCapture
+  const sourcePath = savedPhotoPath.value
+  if (!capture || !sourcePath) return null
+
+  const layout = layoutFor(printFrame.value, capture)
+  const qrUrl = layout.qr ? await downloadUrlForPrint() : null
+  if (printSheet && printSheet.qrUrl === qrUrl) return printSheet
+
+  const qr = layout.qr && qrUrl ? await renderQrCode(qrUrl, layout.qr.width) : null
+  const sheet = await renderSheet(layout, capture, printFrameImage, qr)
+  const path = await window.api.photos.savePrint(await sheet.blob.arrayBuffer(), sourcePath)
+
+  printSheet = { path, qrUrl }
+  return printSheet
 }
 
 function showPrintToast(message: string): void {
@@ -215,11 +274,28 @@ async function handlePrint(): Promise<void> {
   if (!savedPhotoPath.value || printState.value === 'printing') return
 
   printState.value = 'printing'
-  const success = await window.api.photos.print(savedPhotoPath.value)
+
+  let sheet: { path: string; qrUrl: string | null } | null = null
+  try {
+    sheet = await preparePrintSheet()
+  } catch (err) {
+    console.error('[print] preparing the sheet failed', err)
+  }
+
+  if (!sheet) {
+    printState.value = 'failed'
+    showPrintToast('Printing failed. The sheet could not be prepared.')
+    return
+  }
+
+  const success = await window.api.photos.print(sheet.path)
 
   if (success) {
     printCount.value++
     printState.value = 'printed'
+    if (printFrame.value.qr && !sheet.qrUrl) {
+      showPrintToast('Printed — but your photo had not uploaded, so the code is the general one.')
+    }
   } else {
     printState.value = 'failed'
     showPrintToast('Printing failed. Please check your printer.')
@@ -262,8 +338,10 @@ async function handlePasswordSuccess(): Promise<void> {
 }
 
 function handleNewPhoto(): void {
-  capturedPhotoDataUrl.value = null
-  compositedPhoto.value = null
+  rawCapture = null
+  uploadInFlight = null
+  printSheet = null
+  sharePhotoDataUrl.value = null
   savedPhotoPath.value = null
   uploadResult.value = null
   uploadStatus.value = 'idle'
@@ -288,9 +366,20 @@ async function returnToPhotobooth(): Promise<void> {
       class="kiosk-cursor-hidden relative h-screen w-screen bg-black"
       @click="handlePhotoboothClick"
     >
-      <!-- Live camera preview -->
+      <!-- Live camera, cropped to the shape the shot will be taken at. No
+           artwork here on purpose: the framed photo is the reveal afterwards. -->
+      <div
+        v-if="settingsLoaded && captureSize"
+        class="absolute inset-0 flex items-center justify-center"
+      >
+        <div class="overflow-hidden" :style="previewShapeStyle">
+          <CameraPreview ref="cameraPreviewRef" :camera-device-id="cameraDeviceId" />
+        </div>
+      </div>
+
+      <!-- No artwork configured: the whole camera frame is the photo -->
       <CameraPreview
-        v-if="settingsLoaded"
+        v-else-if="settingsLoaded"
         ref="cameraPreviewRef"
         :camera-device-id="cameraDeviceId"
       />
@@ -388,10 +477,10 @@ async function returnToPhotobooth(): Promise<void> {
 
     <!-- Result Screen -->
     <ResultScreen
-      v-else-if="currentScreen === 'result' && compositedPhoto"
+      v-else-if="currentScreen === 'result' && sharePhotoDataUrl"
       key="result"
       class="kiosk-cursor-hidden"
-      :photo-data-url="compositedPhoto.dataUrl"
+      :photo-data-url="sharePhotoDataUrl"
       :auto-return-seconds="autoReturnSeconds"
       :printer-configured="!!printerName"
       :print-state="printState"

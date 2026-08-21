@@ -34,6 +34,9 @@ jobs:
       - name: Lint
         run: pnpm --filter @fotobox/desktop lint
 
+      - name: Test
+        run: pnpm --filter @fotobox/desktop test
+
       - name: Build installer
         run: pnpm --filter @fotobox/desktop build:win
 

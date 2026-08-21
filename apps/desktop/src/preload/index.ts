@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { FrameConfig, FrameVariant } from '../common/frames'
 
 const api = {
   kiosk: {
@@ -16,6 +17,8 @@ const api = {
   },
   photos: {
     save: (buffer: ArrayBuffer): Promise<string> => ipcRenderer.invoke('photos:save', buffer),
+    savePrint: (buffer: ArrayBuffer, sourcePath: string): Promise<string> =>
+      ipcRenderer.invoke('photos:savePrint', buffer, sourcePath),
     print: (filePath: string): Promise<boolean> => ipcRenderer.invoke('photos:print', filePath),
     upload: (
       filePath: string
@@ -29,6 +32,8 @@ const api = {
       ipcRenderer.invoke('photos:getDataUrl', filePath),
     testPrint: (): Promise<{ ok: boolean; message: string }> =>
       ipcRenderer.invoke('photos:testPrint'),
+    savePrintPreview: (): Promise<{ ok: boolean; message: string; path?: string }> =>
+      ipcRenderer.invoke('photos:savePrintPreview'),
     getLastPrintError: (): Promise<string | null> =>
       ipcRenderer.invoke('photos:getLastPrintError')
   },
@@ -50,11 +55,19 @@ const api = {
   camera: {
     getAccessStatus: (): Promise<string> => ipcRenderer.invoke('camera:getAccessStatus')
   },
-  frame: {
-    select: (): Promise<{ path: string; dataUrl: string } | null> =>
-      ipcRenderer.invoke('frame:select'),
-    getDataUrl: (): Promise<string | null> => ipcRenderer.invoke('frame:getDataUrl'),
-    clear: (): Promise<void> => ipcRenderer.invoke('frame:clear')
+  frames: {
+    getAll: (): Promise<Record<FrameVariant, FrameConfig>> => ipcRenderer.invoke('frames:getAll'),
+    getDataUrl: (variant: FrameVariant): Promise<string | null> =>
+      ipcRenderer.invoke('frames:getDataUrl', variant),
+    select: (
+      variant: FrameVariant
+    ): Promise<{ config: FrameConfig; dataUrl: string } | null> =>
+      ipcRenderer.invoke('frames:select', variant),
+    setLayout: (
+      variant: FrameVariant,
+      layout: Pick<FrameConfig, 'photo' | 'qr'>
+    ): Promise<FrameConfig> => ipcRenderer.invoke('frames:setLayout', variant, layout),
+    clear: (variant: FrameVariant): Promise<void> => ipcRenderer.invoke('frames:clear', variant)
   },
   updates: {
     getState: (): Promise<unknown> => ipcRenderer.invoke('updates:getState'),

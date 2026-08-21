@@ -21,9 +21,16 @@ import {
   unlinkSync,
   writeFileSync
 } from 'fs'
-import { basename, join } from 'path'
+import { basename, dirname, join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { setupUpdater } from './updater'
+import {
+  EMPTY_FRAME,
+  fullFrameConfig,
+  normaliseFrameConfig,
+  type FrameConfig,
+  type FrameVariant
+} from '../common/frames'
 
 // --- Upload Queue ---
 
@@ -78,7 +85,10 @@ export function setAllowQuit(value: boolean): void {
 interface Settings {
   password: string
   cameraDeviceId: string
-  framePath: string
+  /** The sheet that goes to the printer — carries the guest's download QR. */
+  printFrame: FrameConfig
+  /** The lighter artwork the guest downloads and posts. */
+  shareFrame: FrameConfig
   printerName: string
   printSize: string
   printFit: string
@@ -94,7 +104,8 @@ interface Settings {
 const defaultSettings: Settings = {
   password: 'admin',
   cameraDeviceId: '',
-  framePath: '',
+  printFrame: EMPTY_FRAME,
+  shareFrame: EMPTY_FRAME,
   printerName: '',
   printSize: '4x6',
   printFit: 'contain',
@@ -132,6 +143,31 @@ function getSettingsPath(): string {
   return join(userDataPath, 'settings.json')
 }
 
+/** Reads the artwork's own pixel size, which every rect in its layout uses. */
+function frameConfigForFile(path: string): FrameConfig {
+  if (!path || !existsSync(path)) return EMPTY_FRAME
+  const size = nativeImage.createFromPath(path).getSize()
+  if (size.width <= 0 || size.height <= 0) return EMPTY_FRAME
+  return fullFrameConfig(path, size.width, size.height)
+}
+
+/**
+ * Booths upgraded from the single full-bleed overlay keep their artwork: it
+ * becomes both sheets, photo filling the frame, exactly as it printed before.
+ * The operator then points each variant at its own PNG.
+ */
+function migrateFrameSettings(stored: Record<string, unknown>): {
+  printFrame: FrameConfig
+  shareFrame: FrameConfig
+} {
+  const legacyPath = typeof stored.framePath === 'string' ? stored.framePath : ''
+  const adopt = (value: unknown): FrameConfig => {
+    if (value && typeof value === 'object') return normaliseFrameConfig(value as FrameConfig)
+    return frameConfigForFile(legacyPath)
+  }
+  return { printFrame: adopt(stored.printFrame), shareFrame: adopt(stored.shareFrame) }
+}
+
 function loadSettings(): Settings {
   const settingsPath = getSettingsPath()
   if (!existsSync(settingsPath)) {
@@ -142,8 +178,15 @@ function loadSettings(): Settings {
     writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2), 'utf-8')
     return { ...defaultSettings }
   }
-  const raw = readFileSync(settingsPath, 'utf-8')
-  return { ...defaultSettings, ...JSON.parse(raw) }
+  const stored = JSON.parse(readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>
+  const settings = { ...defaultSettings, ...stored, ...migrateFrameSettings(stored) }
+
+  // Written back the first time, because working out a legacy layout means
+  // decoding the artwork — and settings are read on nearly every IPC call.
+  if (!stored.printFrame || !stored.shareFrame) {
+    saveSettings(settings)
+  }
+  return settings
 }
 
 function saveSettings(settings: Settings): void {
@@ -151,34 +194,73 @@ function saveSettings(settings: Settings): void {
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8')
 }
 
-function newestPhotoPath(): string | null {
+/** Print renders live beside the guest's copy so the gallery never lists them. */
+const PRINT_SUBDIR = 'print'
+
+function photoBaseDir(): string {
   const settings = loadSettings()
-  const baseDir = settings.savePath || join(app.getPath('home'), 'Pictures', 'Fotobox')
+  return settings.savePath || join(app.getPath('home'), 'Pictures', 'Fotobox')
+}
+
+function newestPngIn(dir: string): { path: string; takenAt: number } | null {
+  if (!existsSync(dir)) return null
+  let newest: { path: string; takenAt: number } | null = null
+  for (const name of readdirSync(dir)) {
+    if (!name.toLowerCase().endsWith('.png')) continue
+    const filePath = join(dir, name)
+    const takenAt = statSync(filePath).mtimeMs
+    if (!newest || takenAt > newest.takenAt) newest = { path: filePath, takenAt }
+  }
+  return newest
+}
+
+/**
+ * What a test print should put on paper. Print renders win over the guest's
+ * copy: they are the sheet the printer would actually receive, so testing
+ * against anything else would tune the printer for the wrong artwork.
+ */
+function newestPhotoPath(): string | null {
+  const baseDir = photoBaseDir()
   if (!existsSync(baseDir)) return null
 
-  let newest: { path: string; takenAt: number } | null = null
+  let newestPrint: { path: string; takenAt: number } | null = null
+  let newestShare: { path: string; takenAt: number } | null = null
   for (const day of readdirSync(baseDir)) {
     const dayDir = join(baseDir, day)
     if (!statSync(dayDir).isDirectory()) continue
-    for (const name of readdirSync(dayDir)) {
-      if (!name.toLowerCase().endsWith('.png')) continue
-      const filePath = join(dayDir, name)
-      const takenAt = statSync(filePath).mtimeMs
-      if (!newest || takenAt > newest.takenAt) newest = { path: filePath, takenAt }
+    for (const [found, keep] of [
+      [newestPngIn(join(dayDir, PRINT_SUBDIR)), 'print'],
+      [newestPngIn(dayDir), 'share']
+    ] as const) {
+      if (!found) continue
+      if (keep === 'print') {
+        if (!newestPrint || found.takenAt > newestPrint.takenAt) newestPrint = found
+      } else if (!newestShare || found.takenAt > newestShare.takenAt) newestShare = found
     }
   }
-  return newest?.path ?? null
+  return (newestPrint ?? newestShare)?.path ?? null
 }
 
-async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message: string }> {
+interface PreparedPage {
+  window: BrowserWindow
+  cleanUp: () => void
+  sheet: { widthIn: number; heightIn: number }
+  /** Null unless the operator overrode the driver's own paper */
+  requestedSize: { widthIn: number; heightIn: number } | undefined
+}
+
+/**
+ * Lays the photo out on the sheet and holds it in an off-screen window, ready
+ * for whoever asked — the printer, or a PDF the operator wants to look at
+ * before burning a sheet of media. Both go through this, so a preview cannot
+ * quietly disagree with what comes out of the printer.
+ */
+async function preparePrintPage(
+  filePath: string
+): Promise<{ ok: true; page: PreparedPage } | { ok: false; message: string }> {
   const settings = loadSettings()
-  if (!settings.printerName) {
-    lastPrintError = 'No printer selected.'
-    return { ok: false, message: lastPrintError }
-  }
   if (!existsSync(filePath)) {
-    lastPrintError = 'The photo file is missing.'
-    return { ok: false, message: lastPrintError }
+    return { ok: false, message: 'The photo file is missing.' }
   }
 
   const printWindow = new BrowserWindow({
@@ -270,14 +352,29 @@ async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message:
 
     if (!rendered) {
       cleanUp()
-      lastPrintError = 'The photo could not be rendered, so nothing was sent to the printer.'
-      return { ok: false, message: lastPrintError }
+      return { ok: false, message: 'The photo could not be rendered, so nothing was sent to the printer.' }
     }
   } catch (err) {
     cleanUp()
-    lastPrintError = `Preparing the page failed: ${(err as Error).message}`
+    return { ok: false, message: `Preparing the page failed: ${(err as Error).message}` }
+  }
+
+  return { ok: true, page: { window: printWindow, cleanUp, sheet, requestedSize: size } }
+}
+
+async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message: string }> {
+  const settings = loadSettings()
+  if (!settings.printerName) {
+    lastPrintError = 'No printer selected.'
     return { ok: false, message: lastPrintError }
   }
+
+  const prepared = await preparePrintPage(filePath)
+  if (!prepared.ok) {
+    lastPrintError = prepared.message
+    return { ok: false, message: lastPrintError }
+  }
+  const { window: printWindow, cleanUp, requestedSize: size } = prepared.page
 
   const base: Electron.WebContentsPrintOptions = {
     silent: true,
@@ -335,6 +432,38 @@ async function printPhotoFile(filePath: string): Promise<{ ok: boolean; message:
   cleanUp()
   lastPrintError = failures.join(' | ')
   return { ok: false, message: lastPrintError }
+}
+
+/**
+ * Writes the sheet the printer would receive to a PDF instead. Same page, same
+ * paper size — so an operator can check the layout of a new artwork without
+ * feeding media through the printer to find out.
+ */
+async function printPhotoFileToPdf(
+  filePath: string,
+  outPath: string
+): Promise<{ ok: boolean; message: string }> {
+  const prepared = await preparePrintPage(filePath)
+  if (!prepared.ok) return { ok: false, message: prepared.message }
+
+  const { window: printWindow, cleanUp, sheet } = prepared.page
+  try {
+    // printToPDF takes inches, unlike webContents.print, which takes microns
+    const pdf = await printWindow.webContents.printToPDF({
+      pageSize: { width: sheet.widthIn, height: sheet.heightIn },
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
+      printBackground: true
+    })
+    writeFileSync(outPath, pdf)
+    return {
+      ok: true,
+      message: `Saved a ${sheet.widthIn.toFixed(2)} × ${sheet.heightIn.toFixed(2)} in preview to ${outPath}`
+    }
+  } catch (err) {
+    return { ok: false, message: `Could not write the PDF: ${(err as Error).message}` }
+  } finally {
+    cleanUp()
+  }
 }
 
 function createWindow(): void {
@@ -467,12 +596,42 @@ app.whenReady().then(async () => {
     return `data:image/png;base64,${readFileSync(framePath).toString('base64')}`
   }
 
+  const frameSettingKey = (variant: FrameVariant): 'printFrame' | 'shareFrame' =>
+    variant === 'print' ? 'printFrame' : 'shareFrame'
+
+  function readFrame(variant: FrameVariant): FrameConfig {
+    return normaliseFrameConfig(loadSettings()[frameSettingKey(variant)])
+  }
+
+  function writeFrame(variant: FrameVariant, config: FrameConfig): FrameConfig {
+    const settings = loadSettings()
+    const normalised = normaliseFrameConfig(config)
+    settings[frameSettingKey(variant)] = normalised
+    saveSettings(settings)
+    return normalised
+  }
+
+  ipcMain.handle('frames:getAll', (): Record<FrameVariant, FrameConfig> => {
+    const settings = loadSettings()
+    return {
+      print: normaliseFrameConfig(settings.printFrame),
+      share: normaliseFrameConfig(settings.shareFrame)
+    }
+  })
+
+  ipcMain.handle('frames:getDataUrl', (_event, variant: FrameVariant): string | null =>
+    frameToDataUrl(readFrame(variant).path)
+  )
+
   ipcMain.handle(
-    'frame:select',
-    async (): Promise<{ path: string; dataUrl: string } | null> => {
+    'frames:select',
+    async (
+      _event,
+      variant: FrameVariant
+    ): Promise<{ config: FrameConfig; dataUrl: string } | null> => {
       const win = BrowserWindow.getAllWindows()[0]
       const options = {
-        title: 'Select frame overlay',
+        title: variant === 'print' ? 'Select print artwork' : 'Select share artwork',
         filters: [{ name: 'PNG image', extensions: ['png'] }],
         properties: ['openFile' as const]
       }
@@ -485,33 +644,41 @@ app.whenReady().then(async () => {
 
       // Keep our own copy: the frame must survive the original being moved or
       // the USB stick it came from being pulled out at the event.
-      const stored = join(app.getPath('userData'), 'frame.png')
+      const stored = join(app.getPath('userData'), `frame-${variant}.png`)
       copyFileSync(source, stored)
 
-      const settings = loadSettings()
-      settings.framePath = stored
-      saveSettings(settings)
+      const previous = readFrame(variant)
+      const fresh = frameConfigForFile(stored)
+      if (!fresh.path) return null
+
+      // Re-exporting the same artwork at the same size is the common case, so
+      // hold on to a layout the operator has already dialled in rather than
+      // making them measure the photo window again.
+      const sameCanvas = previous.width === fresh.width && previous.height === fresh.height
+      const config = writeFrame(
+        variant,
+        sameCanvas ? { ...previous, path: stored } : fresh
+      )
 
       const dataUrl = frameToDataUrl(stored)
-      return dataUrl ? { path: stored, dataUrl } : null
+      return dataUrl ? { config, dataUrl } : null
     }
   )
 
-  ipcMain.handle('frame:getDataUrl', (): string | null =>
-    frameToDataUrl(loadSettings().framePath)
+  ipcMain.handle(
+    'frames:setLayout',
+    (_event, variant: FrameVariant, layout: Pick<FrameConfig, 'photo' | 'qr'>): FrameConfig =>
+      writeFrame(variant, { ...readFrame(variant), photo: layout.photo, qr: layout.qr })
   )
 
-  ipcMain.handle('frame:clear', (): void => {
-    const settings = loadSettings()
-    settings.framePath = ''
-    saveSettings(settings)
+  ipcMain.handle('frames:clear', (_event, variant: FrameVariant): void => {
+    writeFrame(variant, EMPTY_FRAME)
   })
 
   // --- Photos IPC handler ---
 
   ipcMain.handle('photos:save', async (_event, buffer: ArrayBuffer): Promise<string> => {
-    const settings = loadSettings()
-    const baseDir = settings.savePath || join(app.getPath('home'), 'Pictures', 'Fotobox')
+    const baseDir = photoBaseDir()
 
     const now = new Date()
     const pad = (n: number): string => String(n).padStart(2, '0')
@@ -531,6 +698,22 @@ app.whenReady().then(async () => {
     return filePath
   })
 
+  // The sheet is a second render of the same shot, so it is named after the
+  // guest's copy and tucked into a subfolder — the gallery and the upload
+  // queue only ever walk the day folder itself.
+  ipcMain.handle(
+    'photos:savePrint',
+    async (_event, buffer: ArrayBuffer, sourcePath: string): Promise<string> => {
+      const printDir = join(dirname(sourcePath), PRINT_SUBDIR)
+      if (!existsSync(printDir)) {
+        mkdirSync(printDir, { recursive: true })
+      }
+      const filePath = join(printDir, `${basename(sourcePath, '.png')}-print.png`)
+      writeFileSync(filePath, Buffer.from(buffer))
+      return filePath
+    }
+  )
+
   // --- Print IPC handler ---
 
   ipcMain.handle('photos:print', async (_event, filePath: string): Promise<boolean> => {
@@ -548,6 +731,20 @@ app.whenReady().then(async () => {
     }
     return printPhotoFile(newest)
   })
+
+  // ...and to check a layout without spending a sheet of media on it
+  ipcMain.handle(
+    'photos:savePrintPreview',
+    async (): Promise<{ ok: boolean; message: string; path?: string }> => {
+      const newest = newestPhotoPath()
+      if (!newest) {
+        return { ok: false, message: 'No photos yet — take one first, then preview.' }
+      }
+      const outPath = join(dirname(newest), `${basename(newest, '.png')}.pdf`)
+      const result = await printPhotoFileToPdf(newest, outPath)
+      return result.ok ? { ...result, path: outPath } : result
+    }
+  )
 
   // --- Share IPC handler ---
 
@@ -646,8 +843,7 @@ app.whenReady().then(async () => {
   }
 
   ipcMain.handle('photos:list', (_event, limit = 60): GalleryPhoto[] => {
-    const settings = loadSettings()
-    const baseDir = settings.savePath || join(app.getPath('home'), 'Pictures', 'Fotobox')
+    const baseDir = photoBaseDir()
     if (!existsSync(baseDir)) return []
 
     const files: Array<{ path: string; takenAt: number }> = []

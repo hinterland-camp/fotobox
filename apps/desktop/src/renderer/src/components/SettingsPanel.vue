@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import CameraPreview from './CameraPreview.vue'
+import FrameSettings from './FrameSettings.vue'
 
 type UpdateStatus =
   | 'unsupported'
@@ -62,8 +63,6 @@ const emit = defineEmits<{
 
 // Settings state
 const cameraDeviceId = ref('')
-const framePath = ref('')
-const frameDataUrl = ref('')
 const printerName = ref('')
 const printSize = ref('4x6')
 const printFit = ref('contain')
@@ -84,7 +83,6 @@ const loading = ref(true)
 async function loadSettings(): Promise<void> {
   const settings = (await window.api.settings.getAll()) as Record<string, unknown>
   cameraDeviceId.value = (settings.cameraDeviceId as string) || ''
-  framePath.value = (settings.framePath as string) || ''
   printerName.value = (settings.printerName as string) || ''
   printSize.value = (settings.printSize as string) || '4x6'
   printFit.value = (settings.printFit as string) || 'contain'
@@ -94,8 +92,6 @@ async function loadSettings(): Promise<void> {
   serverToken.value = (settings.serverToken as string) || ''
   password.value = (settings.password as string) || ''
   countdownSeconds.value = (settings.countdownSeconds as number) || 3
-
-  frameDataUrl.value = (await window.api.frame.getDataUrl()) || ''
 }
 
 async function loadCameras(): Promise<void> {
@@ -147,21 +143,6 @@ async function onCameraChange(e: Event): Promise<void> {
   const value = (e.target as HTMLSelectElement).value
   cameraDeviceId.value = value
   await saveSetting('cameraDeviceId', value)
-}
-
-async function onFrameSelect(): Promise<void> {
-  // A native dialog rather than an <input type="file">: Electron 32 removed
-  // File.path, so the browser picker could not tell us where the file lives.
-  const selected = await window.api.frame.select()
-  if (!selected) return
-  framePath.value = selected.path
-  frameDataUrl.value = selected.dataUrl
-}
-
-async function onClearFrame(): Promise<void> {
-  framePath.value = ''
-  frameDataUrl.value = ''
-  await window.api.frame.clear()
 }
 
 async function onPrinterChange(e: Event): Promise<void> {
@@ -234,6 +215,18 @@ async function onTestPrint(): Promise<void> {
     printTest.value = await window.api.photos.testPrint()
   } finally {
     testingPrint.value = false
+  }
+}
+
+const savingPreview = ref(false)
+
+async function onSavePrintPreview(): Promise<void> {
+  savingPreview.value = true
+  printTest.value = null
+  try {
+    printTest.value = await window.api.photos.savePrintPreview()
+  } finally {
+    savingPreview.value = false
   }
 }
 
@@ -328,55 +321,29 @@ async function onCountdownChange(e: Event): Promise<void> {
             No cameras detected
           </p>
 
-          <!-- Live preview of the selected camera -->
+          <!-- Enough to tell the cameras apart. How the shot lands in the
+               artwork is shown by each artwork's own preview below, and by the
+               booth screen itself. -->
           <div
             v-if="cameras.length > 0"
             class="relative mt-4 h-56 overflow-hidden rounded-xl border border-zinc-800"
           >
             <CameraPreview :camera-device-id="cameraDeviceId" />
-            <!-- Same overlay the photobooth draws, so this is what guests get -->
-            <img
-              v-if="frameDataUrl"
-              :src="frameDataUrl"
-              alt=""
-              class="pointer-events-none absolute inset-0 h-full w-full object-fill"
-            />
           </div>
         </section>
 
-        <!-- Frame Overlay Section -->
-        <section class="rounded-2xl bg-zinc-900/60 p-6">
-          <h2
-            class="mb-4 text-xs font-semibold uppercase tracking-widest text-zinc-500"
-          >
-            Frame Overlay
-          </h2>
-          <div class="flex gap-3">
-            <button
-              class="h-14 rounded-xl bg-zinc-700/60 px-6 text-base font-medium text-white transition-colors active:bg-zinc-600"
-              @click="onFrameSelect"
-            >
-              {{ framePath ? 'Change Frame' : 'Select PNG' }}
-            </button>
-            <button
-              v-if="framePath"
-              class="h-14 rounded-xl bg-zinc-700/60 px-6 text-base font-medium text-red-400 transition-colors active:bg-zinc-600"
-              @click="onClearFrame"
-            >
-              Remove
-            </button>
-          </div>
-          <p v-if="framePath" class="mt-3 truncate text-sm text-zinc-600">
-            {{ framePath }}
-          </p>
-          <div v-if="frameDataUrl" class="mt-4">
-            <img
-              :src="frameDataUrl"
-              alt="Frame preview"
-              class="max-h-48 rounded-xl border border-zinc-800"
-            />
-          </div>
-        </section>
+        <!-- Artwork Sections -->
+        <FrameSettings
+          variant="print"
+          title="Print artwork"
+          hint="The sheet that leaves the printer. This is the one that carries the guest's download code."
+        />
+
+        <FrameSettings
+          variant="share"
+          title="Share artwork"
+          hint="The image the guest downloads and posts. Uploaded to the server; no code is stamped on it."
+        />
 
         <!-- Printer Section -->
         <section class="rounded-2xl bg-zinc-900/60 p-6">
@@ -474,13 +441,24 @@ async function onCountdownChange(e: Event): Promise<void> {
             page.
           </p>
 
-          <button
-            class="mt-4 h-14 w-full rounded-xl bg-zinc-700/60 px-6 text-base font-medium text-white transition-colors active:bg-zinc-600 disabled:opacity-50"
-            :disabled="testingPrint"
-            @click="onTestPrint"
-          >
-            {{ testingPrint ? 'Printing...' : 'Test print (last photo)' }}
-          </button>
+          <div class="mt-4 flex gap-3">
+            <button
+              class="h-14 flex-1 rounded-xl bg-zinc-700/60 px-6 text-base font-medium text-white transition-colors active:bg-zinc-600 disabled:opacity-50"
+              :disabled="testingPrint || savingPreview"
+              @click="onTestPrint"
+            >
+              {{ testingPrint ? 'Printing...' : 'Test print (last photo)' }}
+            </button>
+
+            <!-- The same page, on disk instead of on media -->
+            <button
+              class="h-14 flex-1 rounded-xl bg-zinc-700/60 px-6 text-base font-medium text-white transition-colors active:bg-zinc-600 disabled:opacity-50"
+              :disabled="testingPrint || savingPreview"
+              @click="onSavePrintPreview"
+            >
+              {{ savingPreview ? 'Saving...' : 'Save as PDF' }}
+            </button>
+          </div>
 
           <p
             v-if="printTest"

@@ -1,4 +1,5 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
+import type { FrameConfig, FrameVariant } from '../common/frames'
 
 interface KioskAPI {
   validatePassword(password: string): Promise<boolean>
@@ -19,12 +20,14 @@ interface UploadResult {
 
 interface PhotosAPI {
   save(buffer: ArrayBuffer): Promise<string>
+  savePrint(buffer: ArrayBuffer, sourcePath: string): Promise<string>
   print(filePath: string): Promise<boolean>
   upload(filePath: string): Promise<UploadResult | null>
   testConnection(): Promise<{ ok: boolean; message: string }>
   list(limit?: number): Promise<GalleryPhoto[]>
   getDataUrl(filePath: string): Promise<string | null>
   testPrint(): Promise<{ ok: boolean; message: string }>
+  savePrintPreview(): Promise<{ ok: boolean; message: string; path?: string }>
   getLastPrintError(): Promise<string | null>
 }
 
@@ -58,10 +61,12 @@ interface CameraAPI {
   getAccessStatus(): Promise<string>
 }
 
-interface FrameAPI {
-  select(): Promise<{ path: string; dataUrl: string } | null>
-  getDataUrl(): Promise<string | null>
-  clear(): Promise<void>
+interface FramesAPI {
+  getAll(): Promise<Record<FrameVariant, FrameConfig>>
+  getDataUrl(variant: FrameVariant): Promise<string | null>
+  select(variant: FrameVariant): Promise<{ config: FrameConfig; dataUrl: string } | null>
+  setLayout(variant: FrameVariant, layout: Pick<FrameConfig, 'photo' | 'qr'>): Promise<FrameConfig>
+  clear(variant: FrameVariant): Promise<void>
 }
 
 type UpdateStatus =
@@ -97,7 +102,7 @@ interface FotoboxAPI {
   uploadQueue: UploadQueueAPI
   printers: PrintersAPI
   camera: CameraAPI
-  frame: FrameAPI
+  frames: FramesAPI
   updates: UpdatesAPI
 }
 
